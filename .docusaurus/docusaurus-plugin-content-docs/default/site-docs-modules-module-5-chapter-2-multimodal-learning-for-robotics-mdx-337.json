@@ -1,0 +1,38 @@
+{
+  "id": "modules/module-5/chapter-2-multimodal-learning-for-robotics",
+  "title": "Chapter 2: Multimodal Learning for Robotics",
+  "description": "Advanced multimodal learning techniques for humanoid robot perception and control",
+  "source": "@site/docs/modules/module-5/chapter-2-multimodal-learning-for-robotics.mdx",
+  "sourceDirName": "modules/module-5",
+  "slug": "/modules/module-5/chapter-2-multimodal-learning-for-robotics",
+  "permalink": "/modules/module-5/chapter-2-multimodal-learning-for-robotics",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-5/chapter-2-multimodal-learning-for-robotics.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "title": "Chapter 2: Multimodal Learning for Robotics",
+    "description": "Advanced multimodal learning techniques for humanoid robot perception and control",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Multimodal Learning",
+      "Robotics",
+      "Humanoid Robots",
+      "Vision-Language Models",
+      "Embodied AI",
+      "Sensor Fusion"
+    ],
+    "sidebar_position": 2
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 1: Vision-Language-Action Fundamentals",
+    "permalink": "/modules/module-5/chapter-1-vision-language-action-fundamentals"
+  },
+  "next": {
+    "title": "Chapter 3: Human-Robot Interaction Systems",
+    "permalink": "/modules/module-5/chapter-3-human-robot-interaction-systems"
+  }
+}

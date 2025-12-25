@@ -1,0 +1,39 @@
+{
+  "id": "modules/module-2/chapter-1-ros2-architecture-fundamentals",
+  "title": "Chapter 1: ROS 2 Architecture and Fundamentals",
+  "description": "Understanding the architecture and core concepts of ROS 2 for humanoid robotics",
+  "source": "@site/docs/modules/module-2/chapter-1-ros2-architecture-fundamentals.mdx",
+  "sourceDirName": "modules/module-2",
+  "slug": "/modules/module-2/chapter-1-ros2-architecture-fundamentals",
+  "permalink": "/modules/module-2/chapter-1-ros2-architecture-fundamentals",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-2/chapter-1-ros2-architecture-fundamentals.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "title": "Chapter 1: ROS 2 Architecture and Fundamentals",
+    "description": "Understanding the architecture and core concepts of ROS 2 for humanoid robotics",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "ROS 2",
+      "Robot Operating System",
+      "Nodes",
+      "Topics",
+      "Services",
+      "Actions",
+      "Middleware"
+    ],
+    "sidebar_position": 1
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 3: Digital-Physical Bridge",
+    "permalink": "/modules/module-1/chapter-3-digital-physical-bridge"
+  },
+  "next": {
+    "title": "Chapter 2: Nodes and Topics in ROS 2",
+    "permalink": "/modules/module-2/chapter-2-communication-patterns"
+  }
+}

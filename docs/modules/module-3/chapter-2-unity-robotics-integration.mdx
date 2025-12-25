@@ -1,0 +1,1909 @@
+---
+title: "Chapter 2: Unity Robotics Integration"
+description: "High-fidelity visual environments and VR/AR support for humanoid robotics"
+hide_table_of_contents: false
+keywords: ["Unity", "Robotics Simulation", "VR/AR", "Humanoid Robotics", "3D Visualization"]
+sidebar_position: 2
+---
+
+# Chapter 2: Unity Robotics Integration
+
+## Learning Objectives
+- Understand Unity's role in robotics simulation and visualization
+- Implement Unity Robotics Package for humanoid robot simulation
+- Create high-fidelity visual environments for robot testing
+- Integrate VR/AR capabilities for immersive robot interaction
+- Connect Unity with ROS 2 for real-time robot control
+
+## Introduction to Unity for Robotics
+
+Unity has emerged as a leading platform for creating high-fidelity simulation environments for robotics, particularly for humanoid robots that require detailed visual and interactive environments. Unlike traditional physics simulators, Unity provides photorealistic rendering, advanced lighting, and sophisticated 3D environments that are essential for computer vision tasks, human-robot interaction, and immersive testing scenarios.
+
+### Unity Robotics Hub Ecosystem
+
+Unity's robotics ecosystem includes several key components:
+
+1. **Unity Robotics Package (URP)**: Bridge between Unity and ROS/ROS2
+2. **Unity ML-Agents**: Reinforcement learning framework for robot training
+3. **Unity Perception Package**: Synthetic data generation for computer vision
+4. **Unity Simulation**: Cloud-based large-scale simulation capabilities
+
+### Advantages for Humanoid Robotics
+
+Unity offers unique advantages for humanoid robotics:
+
+- **Photorealistic Rendering**: Essential for vision-based perception systems
+- **Advanced Materials and Lighting**: Realistic sensor simulation
+- **Interactive 3D Environments**: Complex scenarios with dynamic objects
+- **VR/AR Integration**: Immersive human-robot interaction
+- **Asset Store Resources**: Pre-built environments and robot models
+- **Cross-Platform Deployment**: Test on various hardware configurations
+
+## Unity Robotics Package Integration
+
+### Setting Up Unity Robotics Package
+
+The Unity Robotics Package provides essential middleware for connecting Unity with ROS 2 systems:
+
+```csharp
+// RobotController.cs - Basic ROS-Unity bridge implementation
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Unity.Robotics.ROSTCPConnector;
+using Unity.Robotics.ROSTCPConnector.MessageTypes.Std;
+using Unity.Robotics.ROSTCPConnector.MessageTypes.Sensor;
+using RosMessageTypes.Geometry;
+
+public class RobotController : MonoBehaviour
+{
+    [SerializeField]
+    private string jointTopic = "/joint_states";
+    [SerializeField]
+    private string cmdTopic = "/joint_commands";
+
+    private ROSConnection ros;
+    private float updateRate = 0.01f; // 100Hz update rate for real-time control
+
+    // Joint state storage
+    private Dictionary<string, float> jointPositions = new Dictionary<string, float>();
+    private Dictionary<string, float> jointVelocities = new Dictionary<string, float>();
+
+    void Start()
+    {
+        // Connect to ROS
+        ros = ROSConnection.instance;
+
+        // Subscribe to joint state topic
+        ros.Subscribe<sensor_msgs.JointState>(jointTopic, JointStateCallback);
+
+        // Initialize joint dictionaries
+        InitializeJointDictionaries();
+
+        // Start update coroutine
+        StartCoroutine(UpdateRobotState());
+    }
+
+    void InitializeJointDictionaries()
+    {
+        // Initialize dictionaries for all humanoid joints
+        string[] jointNames = {
+            "left_hip_joint", "left_knee_joint", "left_ankle_joint",
+            "right_hip_joint", "right_knee_joint", "right_ankle_joint",
+            "left_shoulder_joint", "left_elbow_joint", "left_wrist_joint",
+            "right_shoulder_joint", "right_elbow_joint", "right_wrist_joint",
+            "torso_joint", "neck_joint"
+        };
+
+        foreach (string jointName in jointNames)
+        {
+            jointPositions[jointName] = 0.0f;
+            jointVelocities[jointName] = 0.0f;
+        }
+    }
+
+    void JointStateCallback(sensor_msgs.JointState jointState)
+    {
+        // Update joint positions from ROS message
+        for (int i = 0; i < jointState.name.Length; i++)
+        {
+            string jointName = jointState.name[i];
+            if (jointPositions.ContainsKey(jointName))
+            {
+                jointPositions[jointName] = (float)jointState.position[i];
+                if (i < jointState.velocity.Length)
+                    jointVelocities[jointName] = (float)jointState.velocity[i];
+            }
+        }
+    }
+
+    IEnumerator UpdateRobotState()
+    {
+        while (true)
+        {
+            // Update Unity robot model based on joint positions
+            UpdateRobotJoints();
+
+            yield return new WaitForSeconds(updateRate);
+        }
+    }
+
+    void UpdateRobotJoints()
+    {
+        // Example: Update a specific joint in the Unity hierarchy
+        Transform leftHip = transform.Find("LeftLeg/HipJoint");
+        if (leftHip != null && jointPositions.ContainsKey("left_hip_joint"))
+        {
+            leftHip.localRotation = Quaternion.Euler(0, 0, jointPositions["left_hip_joint"] * Mathf.Rad2Deg);
+        }
+
+        // Update other joints similarly...
+        UpdateJoint("RightLeg/HipJoint", "right_hip_joint");
+        UpdateJoint("LeftLeg/KneeJoint", "left_knee_joint");
+        UpdateJoint("RightLeg/KneeJoint", "right_knee_joint");
+        // ... continue for all joints
+    }
+
+    void UpdateJoint(string jointPath, string jointName)
+    {
+        Transform joint = transform.Find(jointPath);
+        if (joint != null && jointPositions.ContainsKey(jointName))
+        {
+            // Apply rotation based on joint position
+            joint.localRotation = Quaternion.Euler(0, 0, jointPositions[jointName] * Mathf.Rad2Deg);
+        }
+    }
+
+    // Method to send joint commands to ROS
+    public void SendJointCommand(Dictionary<string, float> commands)
+    {
+        var jointCmd = new sensor_msgs.JointState()
+        {
+            name = new string[commands.Count],
+            position = new double[commands.Count]
+        };
+
+        int i = 0;
+        foreach (var cmd in commands)
+        {
+            jointCmd.name[i] = cmd.Key;
+            jointCmd.position[i] = cmd.Value;
+            i++;
+        }
+
+        ros.Send(cmdTopic, jointCmd);
+    }
+}
+```
+
+### URDF Import and Robot Configuration
+
+Unity provides tools for importing URDF robot descriptions:
+
+```csharp
+// URDFLoader.cs - Loading and configuring robot from URDF
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Unity.Robotics;
+using System.Xml;
+
+public class URDFLoader : MonoBehaviour
+{
+    [SerializeField]
+    private TextAsset urdfFile;
+    [SerializeField]
+    private GameObject robotPrefab;
+
+    private Dictionary<string, JointConfig> jointConfigs = new Dictionary<string, JointConfig>();
+
+    [System.Serializable]
+    public class JointConfig
+    {
+        public string name;
+        public JointType type;
+        public float lowerLimit;
+        public float upperLimit;
+        public float effortLimit;
+        public float velocityLimit;
+    }
+
+    public enum JointType
+    {
+        Revolute,
+        Continuous,
+        Prismatic,
+        Fixed,
+        Floating,
+        Planar
+    }
+
+    void Start()
+    {
+        if (urdfFile != null)
+        {
+            LoadURDF(urdfFile.text);
+        }
+    }
+
+    void LoadURDF(string urdfContent)
+    {
+        XmlDocument doc = new XmlDocument();
+        doc.LoadXml(urdfContent);
+
+        XmlNodeList jointNodes = doc.SelectNodes("//joint");
+
+        foreach (XmlNode jointNode in jointNodes)
+        {
+            string name = jointNode.Attributes["name"].Value;
+            string typeStr = jointNode.Attributes["type"].Value;
+
+            JointType type = ParseJointType(typeStr);
+
+            // Extract joint limits
+            XmlNode limitNode = jointNode.SelectSingleNode("limit");
+            float lower = limitNode != null ? float.Parse(limitNode.Attributes["lower"].Value) : -Mathf.Infinity;
+            float upper = limitNode != null ? float.Parse(limitNode.Attributes["upper"].Value) : Mathf.Infinity;
+            float effort = limitNode != null ? float.Parse(limitNode.Attributes["effort"].Value) : 100.0f;
+            float velocity = limitNode != null ? float.Parse(limitNode.Attributes["velocity"].Value) : 1.0f;
+
+            JointConfig config = new JointConfig()
+            {
+                name = name,
+                type = type,
+                lowerLimit = lower,
+                upperLimit = upper,
+                effortLimit = effort,
+                velocityLimit = velocity
+            };
+
+            jointConfigs[name] = config;
+        }
+
+        Debug.Log($"Loaded {jointConfigs.Count} joints from URDF");
+    }
+
+    JointType ParseJointType(string typeStr)
+    {
+        switch (typeStr.ToLower())
+        {
+            case "revolute":
+                return JointType.Revolute;
+            case "continuous":
+                return JointType.Continuous;
+            case "prismatic":
+                return JointType.Prismatic;
+            case "fixed":
+                return JointType.Fixed;
+            case "floating":
+                return JointType.Floating;
+            case "planar":
+                return JointType.Planar;
+            default:
+                return JointType.Fixed;
+        }
+    }
+
+    public JointConfig GetJointConfig(string jointName)
+    {
+        if (jointConfigs.ContainsKey(jointName))
+            return jointConfigs[jointName];
+        return null;
+    }
+
+    public List<JointConfig> GetAllJoints()
+    {
+        List<JointConfig> configs = new List<JointConfig>();
+        foreach (var config in jointConfigs.Values)
+        {
+            configs.Add(config);
+        }
+        return configs;
+    }
+}
+```
+
+## High-Fidelity Environment Creation
+
+### Creating Realistic Environments
+
+Unity excels at creating photorealistic environments for humanoid robot testing:
+
+```csharp
+// EnvironmentManager.cs - Managing complex simulation environments
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.Rendering;
+using UnityEngine.Experimental.Rendering;
+
+public class EnvironmentManager : MonoBehaviour
+{
+    [Header("Lighting Configuration")]
+    [SerializeField] private Light mainLight;
+    [SerializeField] private bool useHDRP = true;
+    [SerializeField] private float exposure = 1.0f;
+
+    [Header("Weather System")]
+    [SerializeField] private bool enableWeather = true;
+    [SerializeField] private WeatherType currentWeather = WeatherType.Sunny;
+
+    [Header("Dynamic Objects")]
+    [SerializeField] private List<DynamicObject> dynamicObjects = new List<DynamicObject>();
+
+    public enum WeatherType
+    {
+        Sunny,
+        Cloudy,
+        Rainy,
+        Snowy,
+        Foggy
+    }
+
+    [System.Serializable]
+    public class DynamicObject
+    {
+        public GameObject obj;
+        public ObjectType type;
+        public float updateFrequency = 1.0f;
+        public bool isInteractive = true;
+    }
+
+    public enum ObjectType
+    {
+        Furniture,
+        Door,
+        Window,
+        Switch,
+        Obstacle
+    }
+
+    void Start()
+    {
+        SetupEnvironment();
+        StartCoroutine(UpdateDynamicObjects());
+    }
+
+    void SetupEnvironment()
+    {
+        // Configure lighting based on HDRP settings
+        if (useHDRP)
+        {
+            ConfigureHDRPSettings();
+        }
+        else
+        {
+            ConfigureBuiltInRPSettings();
+        }
+
+        // Set initial weather conditions
+        SetWeather(currentWeather);
+
+        // Initialize dynamic objects
+        foreach (var obj in dynamicObjects)
+        {
+            ConfigureDynamicObject(obj);
+        }
+    }
+
+    void ConfigureHDRPSettings()
+    {
+        // Configure High Definition Render Pipeline settings
+        // This enables advanced lighting, reflections, and materials
+        RenderSettings.skybox = Resources.Load<Material>("HDRP/Skybox") as Material;
+
+        // Set up volumetric lighting for realistic light scattering
+        // Configure advanced shadows and reflections
+    }
+
+    void ConfigureBuiltInRPSettings()
+    {
+        // Configure Built-in Render Pipeline settings
+        RenderSettings.ambientMode = UnityEngine.Rendering.AmbientMode.Trilight;
+        RenderSettings.fog = true;
+        RenderSettings.fogMode = FogMode.ExponentialSquared;
+        RenderSettings.fogDensity = 0.01f;
+    }
+
+    void SetWeather(WeatherType weather)
+    {
+        switch (weather)
+        {
+            case WeatherType.Sunny:
+                SetSunnyWeather();
+                break;
+            case WeatherType.Cloudy:
+                SetCloudyWeather();
+                break;
+            case WeatherType.Rainy:
+                SetRainyWeather();
+                break;
+            case WeatherType.Snowy:
+                SetSnowyWeather();
+                break;
+            case WeatherType.Foggy:
+                SetFoggyWeather();
+                break;
+        }
+    }
+
+    void SetSunnyWeather()
+    {
+        // Configure bright, clear lighting
+        mainLight.color = Color.white;
+        mainLight.intensity = 1.2f;
+        RenderSettings.fogColor = Color.cyan;
+        RenderSettings.fogDensity = 0.005f;
+    }
+
+    void SetCloudyWeather()
+    {
+        // Configure overcast lighting
+        mainLight.color = new Color(0.8f, 0.8f, 0.9f);
+        mainLight.intensity = 0.8f;
+        RenderSettings.fogColor = new Color(0.7f, 0.7f, 0.8f);
+        RenderSettings.fogDensity = 0.01f;
+    }
+
+    void SetRainyWeather()
+    {
+        // Configure rainy weather with dynamic effects
+        mainLight.color = new Color(0.6f, 0.6f, 0.7f);
+        mainLight.intensity = 0.6f;
+        RenderSettings.fogColor = new Color(0.5f, 0.5f, 0.6f);
+        RenderSettings.fogDensity = 0.02f;
+
+        // Add rain particle system
+        CreateRainEffect();
+    }
+
+    void CreateRainEffect()
+    {
+        GameObject rainGO = new GameObject("RainEffect");
+        ParticleSystem rainPS = rainGO.AddComponent<ParticleSystem>();
+
+        var main = rainPS.main;
+        main.startColor = Color.gray;
+        main.startSize = 0.1f;
+        main.startLifetime = 2.0f;
+        main.startSpeed = 10.0f;
+        main.maxParticles = 1000;
+
+        var emission = rainPS.emission;
+        emission.rateOverTime = 500;
+
+        rainGO.transform.position = new Vector3(0, 10, 0);
+    }
+
+    void ConfigureDynamicObject(DynamicObject obj)
+    {
+        if (obj.obj != null)
+        {
+            // Add interaction components based on object type
+            switch (obj.type)
+            {
+                case ObjectType.Door:
+                    obj.obj.AddComponent<DoorController>();
+                    break;
+                case ObjectType.Switch:
+                    obj.obj.AddComponent<SwitchController>();
+                    break;
+                case ObjectType.Furniture:
+                    obj.obj.AddComponent<FurnitureController>();
+                    break;
+            }
+        }
+    }
+
+    IEnumerator UpdateDynamicObjects()
+    {
+        while (true)
+        {
+            foreach (var obj in dynamicObjects)
+            {
+                if (obj.isInteractive)
+                {
+                    UpdateDynamicObject(obj);
+                }
+            }
+
+            yield return new WaitForSeconds(0.1f); // Update every 100ms
+        }
+    }
+
+    void UpdateDynamicObject(DynamicObject obj)
+    {
+        // Update object state based on its type and environment
+        switch (obj.type)
+        {
+            case ObjectType.Obstacle:
+                // Move obstacle if needed
+                MoveObstacle(obj.obj);
+                break;
+            case ObjectType.Door:
+                // Update door state if needed
+                UpdateDoor(obj.obj);
+                break;
+        }
+    }
+
+    void MoveObstacle(GameObject obstacle)
+    {
+        // Implement obstacle movement logic
+        // Could include pathfinding, random movement, or scripted paths
+    }
+
+    void UpdateDoor(GameObject door)
+    {
+        // Update door state (open/close based on conditions)
+        // Could be triggered by robot proximity or commands
+    }
+}
+```
+
+### Advanced Materials and Textures
+
+Creating realistic materials for humanoid robot simulation:
+
+```csharp
+// MaterialManager.cs - Advanced material configuration
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class MaterialManager : MonoBehaviour
+{
+    [Header("Robot Materials")]
+    [SerializeField] private Material metalMaterial;
+    [SerializeField] private Material rubberMaterial;
+    [SerializeField] private Material plasticMaterial;
+    [SerializeField] private Material fabricMaterial;
+
+    [Header("Environment Materials")]
+    [SerializeField] private Material floorMaterial;
+    [SerializeField] private Material wallMaterial;
+    [SerializeField] private Material furnitureMaterial;
+
+    private Dictionary<string, Material> materialLibrary = new Dictionary<string, Material>();
+
+    void Start()
+    {
+        InitializeMaterialLibrary();
+        ConfigureRobotMaterials();
+        ConfigureEnvironmentMaterials();
+    }
+
+    void InitializeMaterialLibrary()
+    {
+        materialLibrary["metal"] = metalMaterial;
+        materialLibrary["rubber"] = rubberMaterial;
+        materialLibrary["plastic"] = plasticMaterial;
+        materialLibrary["fabric"] = fabricMaterial;
+        materialLibrary["floor"] = floorMaterial;
+        materialLibrary["wall"] = wallMaterial;
+        materialLibrary["furniture"] = furnitureMaterial;
+    }
+
+    void ConfigureRobotMaterials()
+    {
+        // Configure materials for different robot parts
+        ConfigureMetalMaterial(metalMaterial, 0.8f, 0.2f); // High reflectivity, low roughness
+        ConfigureRubberMaterial(rubberMaterial, 0.1f, 0.9f); // Low reflectivity, high roughness
+        ConfigurePlasticMaterial(plasticMaterial, 0.4f, 0.6f); // Medium reflectivity, medium roughness
+    }
+
+    void ConfigureMetalMaterial(Material mat, float metallic, float smoothness)
+    {
+        if (mat != null)
+        {
+            mat.SetFloat("_Metallic", metallic);
+            mat.SetFloat("_Smoothness", smoothness);
+            mat.EnableKeyword("_METALLICGLOSSMAP");
+        }
+    }
+
+    void ConfigureRubberMaterial(Material mat, float metallic, float smoothness)
+    {
+        if (mat != null)
+        {
+            mat.SetFloat("_Metallic", metallic);
+            mat.SetFloat("_Smoothness", smoothness);
+            mat.DisableKeyword("_METALLICGLOSSMAP");
+        }
+    }
+
+    void ConfigurePlasticMaterial(Material mat, float metallic, float smoothness)
+    {
+        if (mat != null)
+        {
+            mat.SetFloat("_Metallic", metallic);
+            mat.SetFloat("_Smoothness", smoothness);
+            mat.EnableKeyword("_SPECULARHIGHLIGHTS_OFF");
+        }
+    }
+
+    void ConfigureEnvironmentMaterials()
+    {
+        // Configure materials for environment objects
+        ConfigureFloorMaterial(floorMaterial);
+        ConfigureWallMaterial(wallMaterial);
+        ConfigureFurnitureMaterial(furnitureMaterial);
+    }
+
+    void ConfigureFloorMaterial(Material mat)
+    {
+        if (mat != null)
+        {
+            // Set up floor-specific properties
+            mat.SetFloat("_Smoothness", 0.3f);
+            mat.SetFloat("_Metallic", 0.0f);
+
+            // Add wear patterns for realism
+            Texture2D wearPattern = Resources.Load<Texture2D>("Textures/FloorWear");
+            if (wearPattern != null)
+            {
+                mat.SetTexture("_BumpMap", wearPattern);
+            }
+        }
+    }
+
+    void ConfigureWallMaterial(Material mat)
+    {
+        if (mat != null)
+        {
+            // Set up wall-specific properties
+            mat.SetFloat("_Smoothness", 0.1f);
+            mat.SetFloat("_Metallic", 0.0f);
+
+            // Add texture variations
+            Texture2D wallTexture = Resources.Load<Texture2D>("Textures/WallTexture");
+            if (wallTexture != null)
+            {
+                mat.SetTexture("_MainTex", wallTexture);
+            }
+        }
+    }
+
+    void ConfigureFurnitureMaterial(Material mat)
+    {
+        if (mat != null)
+        {
+            // Set up furniture-specific properties
+            mat.SetFloat("_Smoothness", 0.4f);
+            mat.SetFloat("_Metallic", 0.1f);
+        }
+    }
+
+    public Material GetMaterial(string materialType)
+    {
+        if (materialLibrary.ContainsKey(materialType))
+        {
+            return materialLibrary[materialType];
+        }
+        return null;
+    }
+
+    public void ApplyMaterial(GameObject obj, string materialType)
+    {
+        Material mat = GetMaterial(materialType);
+        if (mat != null)
+        {
+            Renderer renderer = obj.GetComponent<Renderer>();
+            if (renderer != null)
+            {
+                renderer.material = mat;
+            }
+        }
+    }
+}
+```
+
+## VR/AR Integration for Humanoid Robotics
+
+### VR Integration Setup
+
+```csharp
+// VRController.cs - Virtual Reality controller for humanoid robot interaction
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.XR;
+
+public class VRController : MonoBehaviour
+{
+    [Header("VR Configuration")]
+    [SerializeField] private bool enableVR = true;
+    [SerializeField] private bool useControllers = true;
+
+    [Header("Robot Control")]
+    [SerializeField] private GameObject robot;
+    [SerializeField] private float moveSpeed = 1.0f;
+    [SerializeField] private float rotationSpeed = 50.0f;
+
+    [Header("Interaction")]
+    [SerializeField] private LayerMask interactionLayer;
+    [SerializeField] private float interactionDistance = 2.0f;
+
+    private XRNode leftControllerNode = XRNode.LeftHand;
+    private XRNode rightControllerNode = XRNode.RightHand;
+    private InputDevice leftController;
+    private InputDevice rightController;
+
+    private Camera vrCamera;
+
+    void Start()
+    {
+        if (enableVR)
+        {
+            SetupVR();
+        }
+
+        vrCamera = Camera.main;
+    }
+
+    void SetupVR()
+    {
+        // Initialize VR controllers
+        if (useControllers)
+        {
+            InitializeControllers();
+        }
+
+        // Configure VR-specific settings
+        ConfigureVRSettings();
+    }
+
+    void InitializeControllers()
+    {
+        List<InputDevice> devices = new List<InputDevice>();
+        InputDevices.GetDevicesAtXRNode(leftControllerNode, devices);
+        if (devices.Count > 0)
+        {
+            leftController = devices[0];
+        }
+
+        devices.Clear();
+        InputDevices.GetDevicesAtXRNode(rightControllerNode, devices);
+        if (devices.Count > 0)
+        {
+            rightController = devices[0];
+        }
+    }
+
+    void ConfigureVRSettings()
+    {
+        // Set up VR-specific rendering and interaction
+        QualitySettings.vSyncCount = 0; // Disable VSync for VR
+        Application.targetFrameRate = 90; // Target 90 FPS for VR
+
+        // Configure camera for VR
+        if (vrCamera != null)
+        {
+            vrCamera.stereoTargetEye = StereoTargetEyeMask.Both;
+        }
+    }
+
+    void Update()
+    {
+        if (!enableVR) return;
+
+        HandleVRInput();
+        HandleVRInteraction();
+    }
+
+    void HandleVRInput()
+    {
+        // Get controller inputs
+        if (leftController.isValid)
+        {
+            HandleLeftControllerInput();
+        }
+
+        if (rightController.isValid)
+        {
+            HandleRightControllerInput();
+        }
+
+        // Head tracking for robot control
+        HandleHeadTracking();
+    }
+
+    void HandleLeftControllerInput()
+    {
+        // Left controller typically handles movement
+        Vector2 primaryAxis;
+        if (leftController.TryGetFeatureValue(CommonUsages.primary2DAxis, out primaryAxis))
+        {
+            // Move robot based on left stick input
+            Vector3 movement = new Vector3(primaryAxis.x, 0, primaryAxis.y) * moveSpeed * Time.deltaTime;
+            if (robot != null)
+            {
+                robot.transform.Translate(movement, Space.World);
+            }
+        }
+    }
+
+    void HandleRightControllerInput()
+    {
+        // Right controller typically handles rotation and interaction
+        Vector2 primaryAxis;
+        if (rightController.TryGetFeatureValue(CommonUsages.primary2DAxis, out primaryAxis))
+        {
+            // Rotate robot based on right stick input
+            float rotation = primaryAxis.x * rotationSpeed * Time.deltaTime;
+            if (robot != null)
+            {
+                robot.transform.Rotate(0, rotation, 0);
+            }
+        }
+
+        // Handle trigger for interaction
+        float triggerValue;
+        if (rightController.TryGetFeatureValue(CommonUsages.trigger, out triggerValue) && triggerValue > 0.8f)
+        {
+            PerformInteraction();
+        }
+    }
+
+    void HandleHeadTracking()
+    {
+        // Use head orientation for robot direction
+        if (vrCamera != null && robot != null)
+        {
+            // Extract forward direction from headset
+            Vector3 headForward = vrCamera.transform.forward;
+            headForward.y = 0; // Keep movement on ground plane
+            headForward.Normalize();
+
+            // Apply slight rotation based on head direction
+            Quaternion targetRotation = Quaternion.LookRotation(headForward, Vector3.up);
+            robot.transform.rotation = Quaternion.Slerp(
+                robot.transform.rotation,
+                targetRotation,
+                Time.deltaTime * 2.0f
+            );
+        }
+    }
+
+    void HandleVRInteraction()
+    {
+        if (vrCamera != null)
+        {
+            RaycastHit hit;
+            Vector3 rayDirection = vrCamera.transform.forward;
+            Vector3 rayOrigin = vrCamera.transform.position;
+
+            if (Physics.Raycast(rayOrigin, rayDirection, out hit, interactionDistance, interactionLayer))
+            {
+                // Highlight interactable object
+                HighlightObject(hit.collider.gameObject);
+
+                // Check for interaction button press
+                float triggerValue;
+                if (rightController.TryGetFeatureValue(CommonUsages.trigger, out triggerValue) && triggerValue > 0.8f)
+                {
+                    InteractWithObject(hit.collider.gameObject);
+                }
+            }
+        }
+    }
+
+    void HighlightObject(GameObject obj)
+    {
+        // Add temporary highlight to indicate interactivity
+        Renderer renderer = obj.GetComponent<Renderer>();
+        if (renderer != null)
+        {
+            // Store original material to restore later
+            if (!obj.GetComponent<ObjectHighlighter>())
+            {
+                ObjectHighlighter highlighter = obj.AddComponent<ObjectHighlighter>();
+                highlighter.originalMaterial = renderer.material;
+
+                // Create highlight material
+                Material highlightMat = new Material(renderer.material);
+                highlightMat.color = Color.yellow;
+                renderer.material = highlightMat;
+
+                highlighter.highlightMaterial = highlightMat;
+            }
+        }
+    }
+
+    void InteractWithObject(GameObject obj)
+    {
+        // Handle interaction with the object
+        VRInteractable interactable = obj.GetComponent<VRInteractable>();
+        if (interactable != null)
+        {
+            interactable.Interact();
+        }
+    }
+
+    void PerformInteraction()
+    {
+        // Perform general interaction based on gaze
+        if (vrCamera != null)
+        {
+            RaycastHit hit;
+            if (Physics.Raycast(vrCamera.transform.position, vrCamera.transform.forward, out hit, interactionDistance))
+            {
+                InteractWithObject(hit.collider.gameObject);
+            }
+        }
+    }
+}
+
+// Component for objects that can be interacted with in VR
+public class VRInteractable : MonoBehaviour
+{
+    [SerializeField] private bool requiresConfirmation = false;
+    [SerializeField] private string interactionText = "Interact";
+
+    public virtual void Interact()
+    {
+        Debug.Log($"Interacting with {gameObject.name}");
+        OnInteract();
+    }
+
+    protected virtual void OnInteract()
+    {
+        // Override this method in derived classes
+        // Add specific interaction logic here
+    }
+}
+
+// Helper component for object highlighting
+public class ObjectHighlighter : MonoBehaviour
+{
+    public Material originalMaterial;
+    public Material highlightMaterial;
+    public float highlightDuration = 0.2f;
+
+    void Start()
+    {
+        Invoke("RestoreOriginalMaterial", highlightDuration);
+    }
+
+    void RestoreOriginalMaterial()
+    {
+        Renderer renderer = GetComponent<Renderer>();
+        if (renderer != null && originalMaterial != null)
+        {
+            renderer.material = originalMaterial;
+        }
+        Destroy(this);
+    }
+}
+```
+
+### AR Integration Setup
+
+```csharp
+// ARController.cs - Augmented Reality controller for humanoid robot integration
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using UnityEngine.XR.ARFoundation;
+using UnityEngine.XR.ARSubsystems;
+
+public class ARController : MonoBehaviour
+{
+    [Header("AR Configuration")]
+    [SerializeField] private ARSession arSession;
+    [SerializeField] private ARSessionOrigin arOrigin;
+    [SerializeField] private ARPlaneManager planeManager;
+    [SerializeField] private ARRaycastManager raycastManager;
+
+    [Header("Robot Configuration")]
+    [SerializeField] private GameObject robotPrefab;
+    [SerializeField] private GameObject robotInstance;
+    [SerializeField] private bool autoPlaceRobot = false;
+
+    [Header("Interaction Settings")]
+    [SerializeField] private float robotScale = 1.0f;
+    [SerializeField] private bool enableRobotControl = true;
+
+    private List<ARRaycastHit> raycastHits = new List<ARRaycastHit>();
+    private bool robotPlaced = false;
+
+    void Start()
+    {
+        SetupAR();
+    }
+
+    void SetupAR()
+    {
+        if (arSession == null)
+        {
+            arSession = FindObjectOfType<ARSession>();
+        }
+
+        if (arOrigin == null)
+        {
+            arOrigin = FindObjectOfType<ARSessionOrigin>();
+        }
+
+        if (planeManager == null)
+        {
+            planeManager = FindObjectOfType<ARPlaneManager>();
+        }
+
+        if (raycastManager == null)
+        {
+            raycastManager = FindObjectOfType<ARRaycastManager>();
+        }
+
+        // Enable plane detection for surface placement
+        if (planeManager != null)
+        {
+            planeManager.planesChanged += OnPlanesChanged;
+        }
+
+        // Initially hide planes for cleaner interface
+        if (planeManager != null)
+        {
+            planeManager.SetTrackablesActive(false);
+        }
+    }
+
+    void OnPlanesChanged(ARPlanesChangedEventArgs args)
+    {
+        // Handle plane detection changes
+        foreach (var plane in args.added)
+        {
+            Debug.Log($"New plane detected: {plane.trackableId}");
+        }
+
+        foreach (var plane in args.updated)
+        {
+            Debug.Log($"Plane updated: {plane.trackableId}");
+        }
+    }
+
+    void Update()
+    {
+        HandleARInput();
+    }
+
+    void HandleARInput()
+    {
+        if (Input.touchCount > 0)
+        {
+            Touch touch = Input.GetTouch(0);
+
+            if (touch.phase == TouchPhase.Began)
+            {
+                if (!robotPlaced)
+                {
+                    PlaceRobotAtTouch(touch.position);
+                }
+                else if (enableRobotControl)
+                {
+                    HandleRobotControl(touch.position);
+                }
+            }
+        }
+    }
+
+    void PlaceRobotAtTouch(Vector2 touchPosition)
+    {
+        if (raycastManager.Raycast(touchPosition, raycastHits, TrackableType.PlaneWithinPolygon))
+        {
+            Pose placementPose = raycastHits[0].pose;
+
+            if (robotPrefab != null)
+            {
+                robotInstance = Instantiate(robotPrefab, placementPose.position, placementPose.rotation);
+
+                // Scale the robot to appropriate size
+                robotInstance.transform.localScale = Vector3.one * robotScale;
+
+                robotPlaced = true;
+
+                Debug.Log("Robot placed in AR environment");
+            }
+        }
+    }
+
+    void HandleRobotControl(Vector2 touchPosition)
+    {
+        if (raycastManager.Raycast(touchPosition, raycastHits, TrackableType.PlaneWithinPolygon))
+        {
+            Pose targetPose = raycastHits[0].pose;
+
+            // Move robot to target position (with constraints)
+            if (robotInstance != null)
+            {
+                Vector3 targetPosition = targetPose.position;
+                targetPosition.y = robotInstance.transform.position.y; // Maintain height
+
+                robotInstance.transform.position = Vector3.Lerp(
+                    robotInstance.transform.position,
+                    targetPosition,
+                    Time.deltaTime * 2.0f
+                );
+            }
+        }
+    }
+
+    public void ResetRobot()
+    {
+        if (robotInstance != null)
+        {
+            Destroy(robotInstance);
+            robotInstance = null;
+            robotPlaced = false;
+        }
+    }
+
+    public void TogglePlaneDetection(bool enable)
+    {
+        if (planeManager != null)
+        {
+            planeManager.SetTrackablesActive(enable);
+        }
+    }
+
+    // Method to send commands to the robot via ROS bridge
+    public void SendRobotCommand(string command, float[] parameters)
+    {
+        // This would interface with the ROS bridge to send commands
+        // For example: move to position, perform action, etc.
+        Debug.Log($"Sending command to robot: {command} with params: [{string.Join(", ", parameters)}]");
+    }
+
+    // Method to get robot state from AR environment
+    public Vector3 GetRobotPosition()
+    {
+        if (robotInstance != null)
+        {
+            return robotInstance.transform.position;
+        }
+        return Vector3.zero;
+    }
+
+    public Quaternion GetRobotRotation()
+    {
+        if (robotInstance != null)
+        {
+            return robotInstance.transform.rotation;
+        }
+        return Quaternion.identity;
+    }
+}
+```
+
+## Integration with ROS 2
+
+### ROS 2 Bridge Implementation
+
+```csharp
+// ROS2Bridge.cs - Advanced ROS 2 integration for Unity
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+using Unity.Robotics.ROSTCPConnector;
+using Unity.Robotics.ROSTCPConnector.MessageTypes.Std;
+using Unity.Robotics.ROSTCPConnector.MessageTypes.Sensor;
+using Unity.Robotics.ROSTCPConnector.MessageTypes.Geometry;
+using Unity.Robotics.ROSTCPConnector.MessageTypes.BuiltinInterfaces;
+
+public class ROS2Bridge : MonoBehaviour
+{
+    [Header("ROS Configuration")]
+    [SerializeField] private string rosMasterUri = "127.0.0.1:10000";
+    [SerializeField] private bool autoConnect = true;
+
+    [Header("Topic Configuration")]
+    [SerializeField] private string jointStateTopic = "/joint_states";
+    [SerializeField] private string jointCmdTopic = "/joint_commands";
+    [SerializeField] private string robotStateTopic = "/robot_state";
+    [SerializeField] private string cameraTopic = "/camera/image_raw";
+    [SerializeField] private string imuTopic = "/imu/data";
+
+    [Header("Robot Configuration")]
+    [SerializeField] private string robotNamespace = "humanoid_robot";
+    [SerializeField] private float rosUpdateRate = 0.01f; // 100Hz
+
+    private ROSConnection ros;
+    private Dictionary<string, float> jointPositions = new Dictionary<string, float>();
+    private Dictionary<string, float> jointVelocities = new Dictionary<string, float>();
+    private Dictionary<string, float> jointEfforts = new Dictionary<string, float>();
+
+    private bool isConnected = false;
+
+    void Start()
+    {
+        InitializeROSConnection();
+        SubscribeToTopics();
+
+        if (autoConnect)
+        {
+            StartCoroutine(ConnectToROS());
+        }
+    }
+
+    void InitializeROSConnection()
+    {
+        ros = ROSConnection.instance;
+        if (ros == null)
+        {
+            GameObject rosGO = new GameObject("ROSConnection");
+            ros = rosGO.AddComponent<ROSConnection>();
+        }
+
+        // Set ROS master URI if needed
+        // ros.rosIPAddress = rosMasterUri.Split(':')[0];
+        // ros.rosPort = int.Parse(rosMasterUri.Split(':')[1]);
+    }
+
+    IEnumerator ConnectToROS()
+    {
+        // Wait for connection to be established
+        yield return new WaitForSeconds(1.0f);
+        isConnected = true;
+
+        Debug.Log("Connected to ROS 2 network");
+
+        // Start publishing robot state
+        StartCoroutine(PublishRobotState());
+    }
+
+    void SubscribeToTopics()
+    {
+        // Subscribe to joint states
+        ros.Subscribe<sensor_msgs.JointState>(jointStateTopic, OnJointStateReceived);
+
+        // Subscribe to robot state
+        ros.Subscribe<std_msgs.String>(robotStateTopic, OnRobotStateReceived);
+
+        // Subscribe to IMU data
+        ros.Subscribe<sensor_msgs.Imu>(imuTopic, OnImuReceived);
+    }
+
+    void OnJointStateReceived(sensor_msgs.JointState jointState)
+    {
+        // Update internal joint state
+        for (int i = 0; i < jointState.name.Length; i++)
+        {
+            string jointName = jointState.name[i];
+
+            if (i < jointState.position.Length)
+            {
+                jointPositions[jointName] = (float)jointState.position[i];
+            }
+
+            if (i < jointState.velocity.Length)
+            {
+                jointVelocities[jointName] = (float)jointState.velocity[i];
+            }
+
+            if (i < jointState.effort.Length)
+            {
+                jointEfforts[jointName] = (float)jointState.effort[i];
+            }
+        }
+
+        // Update Unity robot model
+        UpdateRobotFromJointState();
+    }
+
+    void OnRobotStateReceived(std_msgs.String state)
+    {
+        // Handle robot state changes
+        Debug.Log($"Robot state changed: {state.data}");
+    }
+
+    void OnImuReceived(sensor_msgs.Imu imuData)
+    {
+        // Process IMU data for balance control
+        Vector3 linearAccel = new Vector3(
+            (float)imuData.linear_acceleration.x,
+            (float)imuData.linear_acceleration.y,
+            (float)imuData.linear_acceleration.z
+        );
+
+        Vector3 angularVel = new Vector3(
+            (float)imuData.angular_velocity.x,
+            (float)imuData.angular_velocity.y,
+            (float)imuData.angular_velocity.z
+        );
+
+        // Use IMU data for Unity simulation
+        ProcessIMUData(linearAccel, angularVel);
+    }
+
+    void UpdateRobotFromJointState()
+    {
+        // Update all robot joints based on received joint states
+        foreach (var joint in jointPositions)
+        {
+            Transform jointTransform = FindJointTransform(joint.Key);
+            if (jointTransform != null)
+            {
+                // Update joint transform based on position
+                UpdateJointTransform(jointTransform, joint.Value);
+            }
+        }
+    }
+
+    Transform FindJointTransform(string jointName)
+    {
+        // Find the corresponding transform in the Unity hierarchy
+        // This mapping should match your robot's structure
+        Transform root = transform; // Assuming robot is child of this object
+        return root.Find(jointName.Replace('_', '/')); // Convert URDF naming to Unity path
+    }
+
+    void UpdateJointTransform(Transform jointTransform, float position)
+    {
+        // Apply position to joint transform (implementation depends on joint type)
+        // For revolute joints, this would be a rotation
+        jointTransform.localRotation = Quaternion.Euler(0, 0, position * Mathf.Rad2Deg);
+    }
+
+    void ProcessIMUData(Vector3 linearAccel, Vector3 angularVel)
+    {
+        // Process IMU data for Unity physics simulation
+        // This could affect robot balance, animation, or other behaviors
+    }
+
+    IEnumerator PublishRobotState()
+    {
+        while (isConnected)
+        {
+            // Publish current robot state
+            PublishCurrentJointState();
+            PublishRobotPose();
+
+            yield return new WaitForSeconds(rosUpdateRate);
+        }
+    }
+
+    void PublishCurrentJointState()
+    {
+        if (jointPositions.Count == 0) return;
+
+        var jointState = new sensor_msgs.JointState()
+        {
+            name = new string[jointPositions.Count],
+            position = new double[jointPositions.Count],
+            velocity = new double[jointVelocities.Count],
+            effort = new double[jointEfforts.Count]
+        };
+
+        int i = 0;
+        foreach (var joint in jointPositions)
+        {
+            jointState.name[i] = joint.Key;
+            jointState.position[i] = joint.Value;
+
+            if (jointVelocities.ContainsKey(joint.Key))
+                jointState.velocity[i] = jointVelocities[joint.Key];
+
+            if (jointEfforts.ContainsKey(joint.Key))
+                jointState.effort[i] = jointEfforts[joint.Key];
+
+            i++;
+        }
+
+        jointState.header = new std_msgs.Header()
+        {
+            stamp = new builtin_interfaces.Time()
+            {
+                sec = (int)Time.time,
+                nanosec = (uint)((Time.time % 1) * 1e9)
+            },
+            frame_id = robotNamespace + "/base_link"
+        };
+
+        ros.Send(jointStateTopic, jointState);
+    }
+
+    void PublishRobotPose()
+    {
+        // Publish robot's current pose in the world
+        Transform robotTransform = transform; // Assuming this object represents the robot
+
+        var pose = new geometry_msgs.PoseStamped()
+        {
+            header = new std_msgs.Header()
+            {
+                stamp = new builtin_interfaces.Time()
+                {
+                    sec = (int)Time.time,
+                    nanosec = (uint)((Time.time % 1) * 1e9)
+                },
+                frame_id = "world"
+            },
+            pose = new geometry_msgs.Pose()
+            {
+                position = new geometry_msgs.Vector3()
+                {
+                    x = robotTransform.position.x,
+                    y = robotTransform.position.y,
+                    z = robotTransform.position.z
+                },
+                orientation = new geometry_msgs.Quaternion()
+                {
+                    x = robotTransform.rotation.x,
+                    y = robotTransform.rotation.y,
+                    z = robotTransform.rotation.z,
+                    w = robotTransform.rotation.w
+                }
+            }
+        };
+
+        ros.Send(robotStateTopic, pose);
+    }
+
+    public void SendJointCommand(Dictionary<string, float> commands)
+    {
+        var jointCmd = new sensor_msgs.JointState()
+        {
+            name = new string[commands.Count],
+            position = new double[commands.Count]
+        };
+
+        int i = 0;
+        foreach (var cmd in commands)
+        {
+            jointCmd.name[i] = cmd.Key;
+            jointCmd.position[i] = cmd.Value;
+            i++;
+        }
+
+        ros.Send(jointCmdTopic, jointCmd);
+    }
+
+    public Dictionary<string, float> GetCurrentJointPositions()
+    {
+        return new Dictionary<string, float>(jointPositions);
+    }
+
+    public void SetJointPositions(Dictionary<string, float> positions)
+    {
+        jointPositions.Clear();
+        foreach (var pos in positions)
+        {
+            jointPositions[pos.Key] = pos.Value;
+        }
+    }
+
+    public bool IsConnected()
+    {
+        return isConnected;
+    }
+
+    void OnApplicationQuit()
+    {
+        if (ros != null)
+        {
+            ros.Dispose();
+        }
+    }
+}
+```
+
+## Performance Optimization
+
+### Unity Performance Considerations
+
+```csharp
+// PerformanceOptimizer.cs - Unity performance optimization for robotics simulation
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class PerformanceOptimizer : MonoBehaviour
+{
+    [Header("LOD Configuration")]
+    [SerializeField] private bool enableLOD = true;
+    [SerializeField] private int lodCount = 3;
+    [SerializeField] private float[] lodDistances = { 10f, 30f, 60f };
+
+    [Header("Culling Configuration")]
+    [SerializeField] private bool enableOcclusionCulling = true;
+    [SerializeField] private bool enableFrustumCulling = true;
+
+    [Header("Simulation Quality")]
+    [SerializeField] private SimulationQuality qualityLevel = SimulationQuality.Medium;
+    [SerializeField] private int targetFrameRate = 60;
+
+    [Header("Resource Management")]
+    [SerializeField] private bool enableObjectPooling = true;
+    [SerializeField] private int maxPooledObjects = 100;
+
+    public enum SimulationQuality
+    {
+        Low,
+        Medium,
+        High,
+        Ultra
+    }
+
+    private Dictionary<string, GameObjectPool> objectPools = new Dictionary<string, GameObjectPool>();
+
+    void Start()
+    {
+        ConfigurePerformanceSettings();
+        InitializeObjectPools();
+    }
+
+    void ConfigurePerformanceSettings()
+    {
+        // Set target frame rate
+        Application.targetFrameRate = targetFrameRate;
+
+        // Configure LOD system
+        if (enableLOD)
+        {
+            ConfigureLODSystem();
+        }
+
+        // Configure quality settings based on level
+        ConfigureQualitySettings();
+
+        // Enable occlusion culling if requested
+        if (enableOcclusionCulling)
+        {
+            StaticOcclusionCulling.Compute();
+        }
+    }
+
+    void ConfigureLODSystem()
+    {
+        // Create LOD groups for complex objects
+        LOD[] lods = new LOD[lodCount];
+
+        for (int i = 0; i < lodCount; i++)
+        {
+            float screenRelativeTransitionHeight = lodDistances[i] / Camera.main.farClipPlane;
+            Renderer[] renderers = GetLODRenderers(i); // Implementation depends on your objects
+
+            lods[i] = new LOD(screenRelativeTransitionHeight, renderers);
+        }
+
+        LODGroup lodGroup = gameObject.AddComponent<LODGroup>();
+        lodGroup.SetLODs(lods);
+        lodGroup.RecalculateBounds();
+    }
+
+    Renderer[] GetLODRenderers(int lodLevel)
+    {
+        // Return appropriate renderers for each LOD level
+        // This is a simplified example - implementation depends on your specific needs
+        List<Renderer> renderers = new List<Renderer>();
+
+        // Add renderers based on LOD level complexity
+        // LOD 0: Full detail
+        // LOD 1: Medium detail
+        // LOD 2: Low detail
+        // etc.
+
+        return renderers.ToArray();
+    }
+
+    void ConfigureQualitySettings()
+    {
+        switch (qualityLevel)
+        {
+            case SimulationQuality.Low:
+                QualitySettings.SetQualityLevel(2); // Typically "Fast"
+                break;
+            case SimulationQuality.Medium:
+                QualitySettings.SetQualityLevel(3); // Typically "Simple"
+                break;
+            case SimulationQuality.High:
+                QualitySettings.SetQualityLevel(4); // Typically "Good"
+                break;
+            case SimulationQuality.Ultra:
+                QualitySettings.SetQualityLevel(5); // Typically "Fantastic"
+                break;
+        }
+
+        // Additional quality settings for robotics simulation
+        QualitySettings.shadowDistance = qualityLevel == SimulationQuality.Ultra ? 150f :
+                                        qualityLevel == SimulationQuality.High ? 100f : 50f;
+
+        QualitySettings.shadowResolution = qualityLevel == SimulationQuality.Ultra ?
+                                          ShadowResolution.High : ShadowResolution.Medium;
+    }
+
+    void InitializeObjectPools()
+    {
+        if (!enableObjectPooling) return;
+
+        // Initialize pools for common objects
+        CreateObjectPool("SensorData", 10);
+        CreateObjectPool("PhysicsBody", 5);
+        CreateObjectPool("InteractionEffect", 20);
+    }
+
+    void CreateObjectPool(string poolName, int initialSize)
+    {
+        GameObjectPool pool = new GameObjectPool();
+        pool.Initialize(poolName, initialSize, maxPooledObjects);
+        objectPools[poolName] = pool;
+    }
+
+    public GameObject GetPooledObject(string poolName)
+    {
+        if (enableObjectPooling && objectPools.ContainsKey(poolName))
+        {
+            return objectPools[poolName].GetObject();
+        }
+        return null;
+    }
+
+    public void ReturnPooledObject(string poolName, GameObject obj)
+    {
+        if (enableObjectPooling && objectPools.ContainsKey(poolName))
+        {
+            objectPools[poolName].ReturnObject(obj);
+        }
+    }
+
+    // Update method for performance monitoring
+    void Update()
+    {
+        MonitorPerformance();
+    }
+
+    void MonitorPerformance()
+    {
+        // Monitor frame rate and performance metrics
+        float frameRate = 1.0f / Time.unscaledDeltaTime;
+
+        if (frameRate < targetFrameRate * 0.8f)
+        {
+            // Frame rate is significantly below target, consider quality reduction
+            Debug.LogWarning($"Performance warning: Current frame rate {frameRate:F1} FPS below target {targetFrameRate} FPS");
+
+            // Could implement dynamic quality adjustment here
+            HandlePerformanceDegradation();
+        }
+    }
+
+    void HandlePerformanceDegradation()
+    {
+        // Implement performance recovery strategies
+        // This could include:
+        // - Reducing simulation quality temporarily
+        // - Disabling non-essential effects
+        // - Reducing physics substeps
+        // - Simplifying geometries
+
+        Debug.Log("Implementing performance recovery measures");
+    }
+
+    // Method to dynamically adjust quality based on performance
+    public void AdjustQuality(SimulationQuality newQuality)
+    {
+        qualityLevel = newQuality;
+        ConfigureQualitySettings();
+
+        Debug.Log($"Quality adjusted to: {newQuality}");
+    }
+
+    // Method to optimize physics for humanoid simulation
+    public void OptimizePhysicsForHumanoid()
+    {
+        // Configure physics settings optimized for humanoid robots
+        Physics.defaultSolverIterations = 8; // Balance between stability and performance
+        Physics.defaultSolverVelocityIterations = 2; // Lower for better performance
+        Physics.sleepThreshold = 0.005f; // Adjust for humanoid sensitivity
+        Physics.queriesHitTriggers = false; // Disable if not needed for performance
+
+        Debug.Log("Physics optimized for humanoid robot simulation");
+    }
+}
+
+// Simple object pooling implementation
+public class GameObjectPool
+{
+    private Queue<GameObject> pool;
+    private string poolName;
+    private int maxSize;
+
+    public void Initialize(string name, int initialSize, int maxPoolSize)
+    {
+        poolName = name;
+        maxSize = maxPoolSize;
+        pool = new Queue<GameObject>();
+
+        // Pre-populate pool
+        for (int i = 0; i < initialSize; i++)
+        {
+            GameObject obj = CreateNewObject();
+            pool.Enqueue(obj);
+        }
+    }
+
+    GameObject CreateNewObject()
+    {
+        GameObject obj = new GameObject($"{poolName}_PooledObject");
+        obj.SetActive(false);
+        return obj;
+    }
+
+    public GameObject GetObject()
+    {
+        if (pool.Count > 0)
+        {
+            GameObject obj = pool.Dequeue();
+            obj.SetActive(true);
+            return obj;
+        }
+        else if (pool.Count < maxSize)
+        {
+            // Create new object if under max size
+            GameObject obj = CreateNewObject();
+            obj.SetActive(true);
+            return obj;
+        }
+
+        // Return null if pool is empty and at max size
+        return null;
+    }
+
+    public void ReturnObject(GameObject obj)
+    {
+        if (obj != null && pool.Count < maxSize)
+        {
+            obj.SetActive(false);
+            pool.Enqueue(obj);
+        }
+    }
+}
+```
+
+## Best Practices and Guidelines
+
+### Unity Robotics Best Practices
+
+1. **Asset Optimization**: Use appropriate polygon counts and textures for real-time performance
+2. **Physics Configuration**: Tune physics parameters for humanoid stability and performance
+3. **LOD Implementation**: Use Level of Detail systems for complex environments
+4. **Memory Management**: Implement object pooling for frequently created/destroyed objects
+5. **Quality Settings**: Balance visual fidelity with performance requirements
+6. **Testing**: Validate simulation results against real-world behavior
+
+### Troubleshooting Common Issues
+
+```csharp
+// UnityRoboticsTroubleshooter.cs - Common issue resolution
+using System.Collections;
+using System.Collections.Generic;
+using UnityEngine;
+
+public class UnityRoboticsTroubleshooter : MonoBehaviour
+{
+    public void TroubleshootConnectionIssues()
+    {
+        Debug.Log("=== ROS Connection Troubleshooting ===");
+        Debug.Log("1. Check if ROS master is running on the specified IP/port");
+        Debug.Log("2. Verify firewall settings allow communication");
+        Debug.Log("3. Ensure ROS and Unity are on the same network");
+        Debug.Log("4. Check for conflicting ROS nodes with same names");
+        Debug.Log("5. Verify topic names match between ROS and Unity");
+    }
+
+    public void TroubleshootPerformanceIssues()
+    {
+        Debug.Log("=== Performance Troubleshooting ===");
+        Debug.Log("1. Reduce polygon count of 3D models");
+        Debug.Log("2. Use texture atlasing to reduce draw calls");
+        Debug.Log("3. Implement occlusion culling for large environments");
+        Debug.Log("4. Reduce physics solver iterations if possible");
+        Debug.Log("5. Use Level of Detail (LOD) for distant objects");
+        Debug.Log("6. Optimize shader complexity");
+    }
+
+    public void TroubleshootPhysicsIssues()
+    {
+        Debug.Log("=== Physics Troubleshooting ===");
+        Debug.Log("1. Check mass and inertia properties are realistic");
+        Debug.Log("2. Verify collision meshes are properly configured");
+        Debug.Log("3. Adjust friction coefficients for realistic behavior");
+        Debug.Log("4. Increase solver iterations for stability");
+        Debug.Log("5. Reduce time step if experiencing instability");
+        Debug.Log("6. Check for joint limit violations");
+    }
+
+    public void TroubleshootVRARIssues()
+    {
+        Debug.Log("=== VR/AR Troubleshooting ===");
+        Debug.Log("1. Verify VR/AR plugins are properly installed");
+        Debug.Log("2. Check device tracking and calibration");
+        Debug.Log("3. Ensure sufficient lighting for AR tracking");
+        Debug.Log("4. Verify camera permissions for AR applications");
+        Debug.Log("5. Check for frame rate issues affecting immersion");
+    }
+
+    // Method to validate robot configuration
+    public bool ValidateRobotConfiguration(GameObject robot)
+    {
+        bool isValid = true;
+
+        // Check for required components
+        if (robot.GetComponent<Rigidbody>() == null)
+        {
+            Debug.LogError("Robot missing Rigidbody component");
+            isValid = false;
+        }
+
+        if (robot.GetComponent<ROS2Bridge>() == null)
+        {
+            Debug.LogWarning("Robot missing ROS2Bridge component (if needed)");
+        }
+
+        // Check for proper joint configuration
+        ConfigurableJoint[] joints = robot.GetComponentsInChildren<ConfigurableJoint>();
+        if (joints.Length == 0)
+        {
+            Debug.LogWarning("Robot has no joints configured");
+        }
+
+        // Validate URDF import if applicable
+        URDFLoader loader = robot.GetComponent<URDFLoader>();
+        if (loader != null)
+        {
+            var allJoints = loader.GetAllJoints();
+            if (allJoints.Count == 0)
+            {
+                Debug.LogWarning("URDF loader found no joints");
+            }
+        }
+
+        return isValid;
+    }
+
+    // Method to run comprehensive system check
+    public void RunSystemCheck()
+    {
+        Debug.Log("=== Unity Robotics System Check ===");
+
+        // Check Unity version compatibility
+        Debug.Log($"Unity Version: {Application.unityVersion}");
+
+        // Check platform support
+        Debug.Log($"Platform: {Application.platform}");
+
+        // Check available memory
+        Debug.Log($"System Memory: {SystemInfo.systemMemorySize} MB");
+
+        // Check graphics capabilities
+        Debug.Log($"Graphics Device: {SystemInfo.graphicsDeviceName}");
+        Debug.Log($"Graphics Memory: {SystemInfo.graphicsMemorySize} MB");
+        Debug.Log($"Max Texture Size: {SystemInfo.maxTextureSize}");
+
+        // Check for Robotics packages
+        CheckRoboticsPackages();
+
+        Debug.Log("System check complete");
+    }
+
+    void CheckRoboticsPackages()
+    {
+        // Check for common robotics packages
+        Debug.Log("Checking for Robotics packages...");
+
+        // This would check for Unity Robotics Package, ML-Agents, etc.
+        // Implementation depends on specific package detection methods
+    }
+}
+```
+
+## Summary
+
+Unity Robotics Integration provides powerful capabilities for creating high-fidelity simulation environments for humanoid robots. The combination of photorealistic rendering, advanced physics simulation, and VR/AR capabilities enables comprehensive testing and development of complex humanoid behaviors. Proper integration with ROS 2 ensures seamless communication between Unity environments and robotic control systems, while performance optimization techniques maintain real-time operation for interactive applications.
+
+## Exercises
+
+1. Create a Unity scene with a humanoid robot navigating through a complex indoor environment
+2. Implement a VR interface for teleoperating a humanoid robot in Unity
+3. Develop an AR application that displays humanoid robot information in real-world environments
+4. Integrate Unity with ROS 2 to control a real humanoid robot through simulation
+5. Create a physics-based balance controller for a humanoid robot in Unity

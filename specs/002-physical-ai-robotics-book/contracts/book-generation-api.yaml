@@ -1,0 +1,312 @@
+openapi: 3.0.0
+info:
+  title: Physical AI & Humanoid Robotics Book Generation API
+  description: API for generating technical books based on syllabus specifications for Physical AI & Humanoid Robotics
+  version: 1.0.0
+  contact:
+    name: AI/Spec-Driven Book Generation System
+    email: dev@bookgen.example.com
+
+servers:
+  - url: http://localhost:8080
+    description: Development server
+  - url: https://api.bookgen.example.com
+    description: Production server
+
+paths:
+  /api/generate-book:
+    post:
+      summary: Generate a book from syllabus topics
+      description: Creates a Docusaurus-based technical book from a provided syllabus structure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - title
+                - description
+                - topics
+              properties:
+                title:
+                  type: string
+                  description: Title of the book to generate
+                  example: "Physical AI & Humanoid Robotics: A Technical Guide"
+                description:
+                  type: string
+                  description: Description of the book
+                  example: "Comprehensive guide to Physical AI and Humanoid Robotics"
+                topics:
+                  type: array
+                  description: Array of topics to include in the book
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - title
+                      - description
+                      - learningObjectives
+                    properties:
+                      id:
+                        type: string
+                        description: Unique identifier for the topic
+                        example: "physical-fundamentals"
+                      title:
+                        type: string
+                        description: Title of the topic
+                        example: "Physical AI Fundamentals"
+                      description:
+                        type: string
+                        description: Description of the topic
+                        example: "Introduction to Physical AI concepts and principles"
+                      learningObjectives:
+                        type: array
+                        description: Learning objectives for the topic
+                        items:
+                          type: string
+                          example: "Understand basic principles of Physical AI"
+      responses:
+        '200':
+          description: Book generation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - bookPath
+                  - chapterCount
+                  - message
+                properties:
+                  status:
+                    type: string
+                    enum: [success]
+                    description: Status of the operation
+                    example: "success"
+                  bookPath:
+                    type: string
+                    description: Path to the generated book
+                    example: "/docs/chapters"
+                  chapterCount:
+                    type: integer
+                    description: Number of chapters generated
+                    example: 10
+                  message:
+                    type: string
+                    description: Human-readable message
+                    example: "Book generated successfully with 10 chapters"
+        '400':
+          description: Invalid input parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - error
+                properties:
+                  status:
+                    type: string
+                    enum: [error]
+                    description: Status of the operation
+                    example: "error"
+                  error:
+                    type: string
+                    description: Error message
+                    example: "Missing required fields"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - error
+                properties:
+                  status:
+                    type: string
+                    enum: [error]
+                    description: Status of the operation
+                    example: "error"
+                  error:
+                    type: string
+                    description: Error message
+                    example: "Internal server error during book generation"
+
+  /api/validate-content:
+    post:
+      summary: Validate content against syllabus requirements
+      description: Validates generated content against syllabus topics and learning objectives
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - content
+                - syllabusTopics
+              properties:
+                content:
+                  type: string
+                  description: Content to validate
+                  example: "# Chapter Title\nContent of the chapter..."
+                syllabusTopics:
+                  type: array
+                  description: Syllabus topics to validate against
+                  items:
+                    type: object
+                    required:
+                      - id
+                      - title
+                      - learningObjectives
+                    properties:
+                      id:
+                        type: string
+                        description: Unique identifier for the topic
+                        example: "physical-fundamentals"
+                      title:
+                        type: string
+                        description: Title of the topic
+                        example: "Physical AI Fundamentals"
+                      learningObjectives:
+                        type: array
+                        description: Learning objectives for the topic
+                        items:
+                          type: string
+                          example: "Understand basic principles of Physical AI"
+      responses:
+        '200':
+          description: Content validation successful
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - isValid
+                  - complianceScore
+                  - validationReport
+                  - issues
+                properties:
+                  isValid:
+                    type: boolean
+                    description: Whether the content is valid according to requirements
+                    example: true
+                  complianceScore:
+                    type: number
+                    description: Compliance score as percentage (0-100)
+                    example: 95.5
+                  validationReport:
+                    type: string
+                    description: Detailed validation report
+                    example: "Content meets 95.5% of syllabus requirements"
+                  issues:
+                    type: array
+                    description: List of validation issues found
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          description: Type of issue
+                          example: "missing-content"
+                        severity:
+                          type: string
+                          description: Severity level
+                          enum: [low, medium, high, critical]
+                          example: "medium"
+                        description:
+                          type: string
+                          description: Description of the issue
+                          example: "Missing coverage of learning objective X"
+                        suggestedFix:
+                          type: string
+                          description: Suggested fix for the issue
+                          example: "Add content covering learning objective X"
+        '400':
+          description: Invalid input parameters
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - error
+                properties:
+                  status:
+                    type: string
+                    enum: [error]
+                    description: Status of the operation
+                    example: "error"
+                  error:
+                    type: string
+                    description: Error message
+                    example: "Missing required fields"
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - error
+                properties:
+                  status:
+                    type: string
+                    enum: [error]
+                    description: Status of the operation
+                    example: "error"
+                  error:
+                    type: string
+                    description: Error message
+                    example: "Internal server error during validation"
+
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Returns the health status of the API service
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                required:
+                  - status
+                  - timestamp
+                  - service
+                properties:
+                  status:
+                    type: string
+                    enum: [healthy]
+                    description: Health status of the service
+                    example: "healthy"
+                  timestamp:
+                    type: string
+                    format: date-time
+                    description: Timestamp of the health check
+                    example: "2025-12-24T16:25:52.668Z"
+                  service:
+                    type: string
+                    description: Name of the service
+                    example: "Book Generation API"
+
+  /api/spec:
+    get:
+      summary: API Specification
+      description: Returns the OpenAPI specification for this API
+      responses:
+        '200':
+          description: OpenAPI specification
+          content:
+            application/json:
+              schema:
+                type: object
+                description: OpenAPI 3.0 specification
+                example: {"openapi": "3.0.0", "info": {"title": "API", "version": "1.0.0"}}
+
+components:

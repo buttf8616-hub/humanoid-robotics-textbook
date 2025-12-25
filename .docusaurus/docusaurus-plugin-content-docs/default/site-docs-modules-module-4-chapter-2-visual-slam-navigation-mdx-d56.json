@@ -1,0 +1,38 @@
+{
+  "id": "modules/module-4/chapter-2-visual-slam-navigation",
+  "title": "Chapter 2: Visual SLAM and Navigation",
+  "description": "Perception and navigation planning with Isaac and Nav2 for humanoid robots",
+  "source": "@site/docs/modules/module-4/chapter-2-visual-slam-navigation.mdx",
+  "sourceDirName": "modules/module-4",
+  "slug": "/modules/module-4/chapter-2-visual-slam-navigation",
+  "permalink": "/modules/module-4/chapter-2-visual-slam-navigation",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-4/chapter-2-visual-slam-navigation.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "title": "Chapter 2: Visual SLAM and Navigation",
+    "description": "Perception and navigation planning with Isaac and Nav2 for humanoid robots",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Visual SLAM",
+      "Navigation",
+      "SLAM",
+      "Path Planning",
+      "Humanoid Robotics",
+      "Computer Vision"
+    ],
+    "sidebar_position": 2
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 1: Isaac Sim and Synthetic Data",
+    "permalink": "/modules/module-4/chapter-1-isaac-sim-synthetic-data"
+  },
+  "next": {
+    "title": "Chapter 3: AI Perception and Decision Making",
+    "permalink": "/modules/module-4/chapter-3-ai-perception-decision-making"
+  }
+}

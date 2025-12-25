@@ -1,0 +1,36 @@
+{
+  "id": "modules/module-1/chapter-1-introduction-to-physical-ai",
+  "title": "Chapter 1: Introduction to Physical AI",
+  "description": "Understanding the fundamentals of Physical AI and embodied intelligence",
+  "source": "@site/docs/modules/module-1/chapter-1-introduction-to-physical-ai.mdx",
+  "sourceDirName": "modules/module-1",
+  "slug": "/modules/module-1/chapter-1-introduction-to-physical-ai",
+  "permalink": "/modules/module-1/chapter-1-introduction-to-physical-ai",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-1/chapter-1-introduction-to-physical-ai.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "title": "Chapter 1: Introduction to Physical AI",
+    "description": "Understanding the fundamentals of Physical AI and embodied intelligence",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Physical AI",
+      "Embodied Intelligence",
+      "Digital-Physical Bridge",
+      "Robotics Foundation"
+    ],
+    "sidebar_position": 1
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Physical AI & Humanoid Robotics Textbook",
+    "permalink": "/intro"
+  },
+  "next": {
+    "title": "Chapter 2: Embodied Intelligence Principles",
+    "permalink": "/modules/module-1/chapter-2-embodied-intelligence-principles"
+  }
+}

@@ -1,0 +1,1969 @@
+---
+title: "Chapter 3: Sensor Simulation Integration"
+description: "LiDAR, cameras, IMUs, and multi-modal sensor fusion for humanoid robotics"
+hide_table_of_contents: false
+keywords: ["Sensor Simulation", "LiDAR", "Camera", "IMU", "Sensor Fusion", "Humanoid Robotics"]
+sidebar_position: 3
+---
+
+# Chapter 3: Sensor Simulation Integration
+
+## Learning Objectives
+- Understand the principles of sensor simulation in robotics environments
+- Implement realistic LiDAR, camera, and IMU sensor models
+- Design multi-modal sensor fusion systems for humanoid robots
+- Validate sensor simulation accuracy against real-world data
+- Optimize sensor simulation for computational efficiency
+
+## Introduction to Sensor Simulation
+
+Sensor simulation is a critical component of robotics development, particularly for humanoid robots that rely on multiple sensor modalities to perceive and interact with their environment. Accurate sensor simulation enables comprehensive testing of perception algorithms, navigation systems, and human-robot interaction capabilities before deployment on physical robots.
+
+### Importance of Sensor Simulation for Humanoid Robots
+
+Humanoid robots require sophisticated sensor integration due to their:
+- Complex multi-modal perception needs
+- Balance and locomotion requirements
+- Human interaction capabilities
+- Safety-critical operations
+- Real-time decision making requirements
+
+### Sensor Simulation Pipeline
+
+The sensor simulation pipeline typically involves:
+1. **Environment Modeling**: Creating accurate representations of the physical world
+2. **Physics-Based Simulation**: Modeling sensor physics and environmental interactions
+3. **Noise Modeling**: Adding realistic noise and uncertainty to sensor readings
+4. **Data Processing**: Converting simulated readings to standard formats
+5. **Integration**: Connecting simulated sensors to robot control systems
+
+## LiDAR Sensor Simulation
+
+### LiDAR Physics and Modeling
+
+LiDAR (Light Detection and Ranging) sensors are essential for humanoid robots for navigation, mapping, and obstacle detection. Simulating LiDAR requires understanding the physics of laser propagation and reflection:
+
+```python
+import numpy as np
+import math
+
+class LiDARSimulator:
+    def __init__(self, num_beams=360, max_range=10.0, min_range=0.1,
+                 fov=360, resolution=0.01, noise_std=0.02):
+        """
+        Initialize LiDAR simulator parameters
+        """
+        self.num_beams = num_beams
+        self.max_range = max_range
+        self.min_range = min_range
+        self.fov = fov  # Field of view in degrees
+        self.resolution = resolution
+        self.noise_std = noise_std  # Standard deviation of measurement noise
+
+        # Generate beam angles
+        self.beam_angles = np.linspace(
+            -np.pi * fov/360,
+            np.pi * fov/360,
+            num_beams
+        )
+
+        # Pre-calculate beam directions
+        self.beam_directions = np.array([
+            [np.cos(angle), np.sin(angle)]
+            for angle in self.beam_angles
+        ])
+
+    def simulate_scan(self, robot_pose, environment_map, robot_position):
+        """
+        Simulate LiDAR scan given robot position and environment
+        """
+        ranges = []
+
+        for i, angle in enumerate(self.beam_angles):
+            # Calculate global beam direction
+            global_angle = angle + robot_pose[2]  # robot_pose[2] is theta
+            direction = np.array([np.cos(global_angle), np.sin(global_angle)])
+
+            # Ray casting to find intersection with obstacles
+            range_reading = self.ray_cast(
+                robot_position, direction, environment_map
+            )
+
+            # Add noise to the measurement
+            noisy_reading = self.add_noise(range_reading)
+
+            # Apply range limits
+            if noisy_reading < self.min_range or noisy_reading > self.max_range:
+                noisy_reading = float('inf')  # Invalid reading
+
+            ranges.append(noisy_reading)
+
+        return np.array(ranges)
+
+    def ray_cast(self, start_pos, direction, env_map):
+        """
+        Ray casting to find distance to nearest obstacle
+        This is a simplified implementation - real simulators use more sophisticated methods
+        """
+        # For this example, we'll use a simple grid-based approach
+        # In practice, this would use more complex collision detection
+        step_size = 0.01  # 1cm steps
+        max_steps = int(self.max_range / step_size)
+
+        for step in range(max_steps):
+            current_pos = start_pos + direction * step * step_size
+
+            # Check if current position is in collision
+            # This would typically involve checking against environment geometry
+            if self.is_collision(current_pos, env_map):
+                return step * step_size
+
+        # No collision found within range
+        return self.max_range
+
+    def is_collision(self, position, env_map):
+        """
+        Check if position is in collision with environment
+        """
+        # Simplified collision check - in practice this would be more complex
+        # This is a placeholder implementation
+        return False
+
+    def add_noise(self, true_range):
+        """
+        Add realistic noise to LiDAR measurements
+        """
+        if true_range == float('inf'):
+            return true_range
+
+        # Add Gaussian noise
+        noise = np.random.normal(0, self.noise_std)
+
+        # Add range-dependent noise (further distances have more uncertainty)
+        range_dependent_noise = 0.001 * true_range
+
+        total_noise = noise + np.random.normal(0, range_dependent_noise)
+
+        noisy_range = true_range + total_noise
+
+        # Ensure range is within valid bounds
+        noisy_range = max(self.min_range, min(self.max_range, noisy_range))
+
+        return noisy_range
+
+    def generate_laser_scan_message(self, ranges, time_stamp):
+        """
+        Generate a ROS-compatible LaserScan message
+        """
+        # This would create a sensor_msgs/LaserScan message
+        # For now, returning a dictionary with the structure
+        scan_msg = {
+            'header': {
+                'stamp': time_stamp,
+                'frame_id': 'laser_frame'
+            },
+            'angle_min': -self.fov * np.pi / 360,
+            'angle_max': self.fov * np.pi / 360,
+            'angle_increment': (2 * np.pi * self.fov/360) / self.num_beams,
+            'time_increment': 0.0,  # Time between measurements
+            'scan_time': 0.1,  # Time between scans
+            'range_min': self.min_range,
+            'range_max': self.max_range,
+            'ranges': ranges.tolist(),
+            'intensities': []  # Could include intensity data
+        }
+        return scan_msg
+
+# Example usage
+lidar = LiDARSimulator(num_beams=720, max_range=20.0, fov=360)
+robot_pose = [0.0, 0.0, 0.0]  # x, y, theta
+robot_pos = np.array([0.0, 0.0])
+env_map = {}  # Placeholder for environment representation
+
+# Simulate a scan
+simulated_scan = lidar.simulate_scan(robot_pose, env_map, robot_pos)
+print(f"Simulated LiDAR scan with {len(simulated_scan)} beams")
+```
+
+### Advanced LiDAR Simulation Features
+
+```python
+class AdvancedLiDARSimulator(LiDARSimulator):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # Additional parameters for realistic simulation
+        self.intensity_model = kwargs.get('intensity_model', True)
+        self.multiple_returns = kwargs.get('multiple_returns', False)
+        self.resolution_shifter = kwargs.get('resolution_shifter', False)
+
+        # Material properties for different surfaces
+        self.material_properties = {
+            'metal': {'reflectivity': 0.9, 'roughness': 0.1},
+            'concrete': {'reflectivity': 0.7, 'roughness': 0.3},
+            'grass': {'reflectivity': 0.4, 'roughness': 0.6},
+            'glass': {'reflectivity': 0.8, 'roughness': 0.05}
+        }
+
+    def simulate_with_materials(self, robot_pose, environment, robot_position):
+        """
+        Simulate LiDAR with material-specific properties
+        """
+        ranges = []
+        intensities = []
+
+        for i, angle in enumerate(self.beam_angles):
+            global_angle = angle + robot_pose[2]
+            direction = np.array([np.cos(global_angle), np.sin(global_angle)])
+
+            # Find intersection with environment
+            intersection = self.find_intersection_with_material(
+                robot_position, direction, environment
+            )
+
+            if intersection:
+                range_reading = intersection['distance']
+                material = intersection['material']
+
+                # Calculate intensity based on material properties
+                intensity = self.calculate_intensity(material, range_reading)
+
+                # Add noise
+                noisy_range = self.add_noise(range_reading)
+            else:
+                range_reading = self.max_range
+                intensity = 0.0
+                noisy_range = float('inf')
+
+            ranges.append(noisy_range)
+            intensities.append(intensity)
+
+        return np.array(ranges), np.array(intensities)
+
+    def find_intersection_with_material(self, start_pos, direction, env):
+        """
+        Find intersection point and determine material properties
+        """
+        # This would involve complex ray-geometry intersection
+        # For now, returning a simplified result
+        distance = self.ray_cast(start_pos, direction, env)
+
+        # Determine material based on environment (simplified)
+        material = self.estimate_material_at_point(
+            start_pos + direction * distance
+        )
+
+        return {
+            'distance': distance,
+            'material': material
+        }
+
+    def estimate_material_at_point(self, point):
+        """
+        Estimate material at a given point in the environment
+        """
+        # This would typically use environment data
+        # For now, returning a random material
+        materials = list(self.material_properties.keys())
+        import random
+        return random.choice(materials)
+
+    def calculate_intensity(self, material, range_val):
+        """
+        Calculate return intensity based on material properties
+        """
+        if material not in self.material_properties:
+            material = 'concrete'  # Default material
+
+        props = self.material_properties[material]
+
+        # Base intensity based on reflectivity
+        base_intensity = props['reflectivity']
+
+        # Attenuation due to distance (inverse square law)
+        distance_factor = 1.0 / (range_val ** 2) if range_val > 0 else 1.0
+
+        # Surface roughness affects intensity
+        roughness_factor = 1.0 - props['roughness']
+
+        intensity = base_intensity * distance_factor * roughness_factor
+
+        # Add some noise to intensity
+        intensity_noise = np.random.normal(0, 0.05)
+        intensity = max(0.0, min(1.0, intensity + intensity_noise))
+
+        return intensity
+
+    def simulate_multiple_returns(self, robot_pose, environment, robot_position):
+        """
+        Simulate LiDAR with multiple returns (for transparent or semi-transparent objects)
+        """
+        ranges = []
+        intensities = []
+
+        for i, angle in enumerate(self.beam_angles):
+            global_angle = angle + robot_pose[2]
+            direction = np.array([np.cos(global_angle), np.sin(global_angle)])
+
+            # Find multiple intersections
+            intersections = self.find_multiple_intersections(
+                robot_position, direction, environment
+            )
+
+            if intersections:
+                # Process multiple returns
+                beam_ranges = []
+                beam_intensities = []
+
+                for intersection in intersections:
+                    range_reading = intersection['distance']
+                    material = intersection['material']
+
+                    intensity = self.calculate_intensity(material, range_reading)
+                    noisy_range = self.add_noise(range_reading)
+
+                    beam_ranges.append(noise_range)
+                    beam_intensities.append(intensity)
+
+                # For this implementation, we'll use the first return
+                # In practice, you might return all valid returns
+                ranges.append(beam_ranges[0] if beam_ranges else float('inf'))
+                intensities.append(beam_intensities[0] if beam_intensities else 0.0)
+            else:
+                ranges.append(float('inf'))
+                intensities.append(0.0)
+
+        return np.array(ranges), np.array(intensities)
+
+    def find_multiple_intersections(self, start_pos, direction, env):
+        """
+        Find multiple intersections along a ray (for complex environments)
+        """
+        # This is a simplified implementation
+        # Real implementation would use advanced ray tracing
+        single_intersection = self.find_intersection_with_material(
+            start_pos, direction, env
+        )
+
+        # For now, return just the first intersection
+        # A full implementation would find multiple objects along the ray
+        return [single_intersection] if single_intersection else []
+```
+
+## Camera Sensor Simulation
+
+### RGB Camera Simulation
+
+```python
+import cv2
+import numpy as np
+from PIL import Image
+
+class CameraSimulator:
+    def __init__(self, width=640, height=480, fov=60,
+                 near_clip=0.1, far_clip=100.0, noise_level=0.01):
+        """
+        Initialize camera simulator
+        """
+        self.width = width
+        self.height = height
+        self.fov = fov  # Field of view in degrees
+        self.near_clip = near_clip
+        self.far_clip = far_clip
+        self.noise_level = noise_level
+
+        # Calculate camera intrinsic matrix
+        focal_length = width / (2 * np.tan(np.radians(fov/2)))
+        self.intrinsic_matrix = np.array([
+            [focal_length, 0, width/2],
+            [0, focal_length, height/2],
+            [0, 0, 1]
+        ])
+
+        # Distortion coefficients (simplified)
+        self.distortion_coeffs = np.array([0.0, 0.0, 0.0, 0.0, 0.0])
+
+    def simulate_rgb_image(self, scene_data, camera_pose):
+        """
+        Simulate RGB image based on scene and camera pose
+        """
+        # This would typically render the scene from the camera's perspective
+        # For this example, we'll create a synthetic image
+
+        # Create a blank image
+        image = np.zeros((self.height, self.width, 3), dtype=np.uint8)
+
+        # Add some synthetic elements based on scene data
+        # This is a simplified representation
+        image = self.render_scene_synthetic(scene_data, camera_pose, image)
+
+        # Add noise to the image
+        image = self.add_image_noise(image)
+
+        # Apply lens distortion
+        image = self.apply_lens_distortion(image)
+
+        return image
+
+    def render_scene_synthetic(self, scene_data, camera_pose, base_image):
+        """
+        Render a synthetic scene based on scene data
+        """
+        # This is a simplified rendering function
+        # In practice, this would use a 3D renderer like OpenGL or Unity
+
+        # Add some random shapes to represent objects in the scene
+        for _ in range(10):  # Add 10 random objects
+            center_x = np.random.randint(0, self.width)
+            center_y = np.random.randint(0, self.height)
+            radius = np.random.randint(10, 50)
+            color = [np.random.randint(0, 255) for _ in range(3)]
+
+            cv2.circle(base_image, (center_x, center_y), radius, color, -1)
+
+        # Add some lines to represent edges
+        for _ in range(5):
+            pt1 = (np.random.randint(0, self.width), np.random.randint(0, self.height))
+            pt2 = (np.random.randint(0, self.width), np.random.randint(0, self.height))
+            color = [np.random.randint(0, 255) for _ in range(3)]
+            thickness = np.random.randint(1, 5)
+
+            cv2.line(base_image, pt1, pt2, color, thickness)
+
+        return base_image
+
+    def add_image_noise(self, image):
+        """
+        Add realistic noise to the camera image
+        """
+        # Add Gaussian noise
+        noise = np.random.normal(0, self.noise_level * 255, image.shape)
+        noisy_image = image.astype(np.float32) + noise
+        noisy_image = np.clip(noisy_image, 0, 255).astype(np.uint8)
+
+        # Add shot noise (proportional to signal)
+        signal_dependent_noise = np.random.poisson(image.astype(np.float32) / 255.0) * 255.0
+        signal_dependent_noise = np.clip(signal_dependent_noise, 0, 255).astype(np.uint8)
+
+        # Combine both types of noise
+        final_image = cv2.addWeighted(noisy_image, 0.7, signal_dependent_noise, 0.3, 0)
+
+        return final_image
+
+    def apply_lens_distortion(self, image):
+        """
+        Apply lens distortion to simulate real camera effects
+        """
+        # Get image dimensions
+        h, w = image.shape[:2]
+
+        # Create new camera matrix for undistortion
+        new_camera_matrix, roi = cv2.getOptimalNewCameraMatrix(
+            self.intrinsic_matrix, self.distortion_coeffs, (w, h), 1, (w, h)
+        )
+
+        # Apply distortion
+        distorted_image = cv2.undistort(
+            image, self.intrinsic_matrix, self.distortion_coeffs, None, new_camera_matrix
+        )
+
+        # Crop the image to remove black borders
+        x, y, w, h = roi
+        distorted_image = distorted_image[y:y+h, x:x+w]
+
+        # Resize back to original dimensions
+        distorted_image = cv2.resize(distorted_image, (self.width, self.height))
+
+        return distorted_image
+
+    def generate_camera_info(self):
+        """
+        Generate camera info message similar to ROS camera_info
+        """
+        camera_info = {
+            'header': {'frame_id': 'camera_optical_frame'},
+            'height': self.height,
+            'width': self.width,
+            'distortion_model': 'plumb_bob',
+            'D': self.distortion_coeffs.tolist(),  # Distortion coefficients
+            'K': self.intrinsic_matrix.flatten().tolist(),  # Intrinsic matrix
+            'R': [1, 0, 0, 0, 1, 0, 0, 0, 1],  # Rectification matrix
+            'P': [self.intrinsic_matrix[0,0], 0, self.intrinsic_matrix[0,2], 0,
+                  0, self.intrinsic_matrix[1,1], self.intrinsic_matrix[1,2], 0,
+                  0, 0, 1, 0],  # Projection matrix
+            'binning_x': 0,
+            'binning_y': 0,
+            'roi': {
+                'x_offset': 0,
+                'y_offset': 0,
+                'height': 0,
+                'width': 0,
+                'do_rectify': False
+            }
+        }
+        return camera_info
+
+# Example usage
+camera = CameraSimulator(width=1280, height=720, fov=90)
+scene_data = {}  # Placeholder for scene representation
+camera_pose = [0, 0, 0, 0, 0, 0]  # x, y, z, roll, pitch, yaw
+
+# Simulate an image
+simulated_image = camera.simulate_rgb_image(scene_data, camera_pose)
+print(f"Simulated image shape: {simulated_image.shape}")
+```
+
+### Depth Camera Simulation
+
+```python
+class DepthCameraSimulator(CameraSimulator):
+    def __init__(self, **kwargs):
+        super().__init__(**kwargs)
+
+        # Depth-specific parameters
+        self.depth_range = kwargs.get('depth_range', (0.1, 10.0))
+        self.depth_noise_std = kwargs.get('depth_noise_std', 0.01)
+        self.depth_resolution = kwargs.get('depth_resolution', 0.001)  # meters per unit
+
+    def simulate_depth_image(self, scene_data, camera_pose):
+        """
+        Simulate depth image based on scene geometry
+        """
+        # Create a depth image (grayscale where intensity represents depth)
+        depth_image = np.zeros((self.height, self.width), dtype=np.float32)
+
+        # Simulate depth by casting rays for each pixel
+        for y in range(self.height):
+            for x in range(self.width):
+                # Convert pixel coordinates to 3D ray
+                ray_3d = self.pixel_to_ray(x, y)
+
+                # Transform ray to world coordinates based on camera pose
+                world_ray = self.transform_ray_to_world(ray_3d, camera_pose)
+
+                # Find intersection with scene
+                depth = self.ray_scene_intersection(world_ray, scene_data)
+
+                # Add noise to depth measurement
+                depth_with_noise = self.add_depth_noise(depth)
+
+                depth_image[y, x] = depth_with_noise
+
+        return depth_image
+
+    def pixel_to_ray(self, pixel_x, pixel_y):
+        """
+        Convert pixel coordinates to a 3D ray in camera coordinates
+        """
+        # Convert pixel to normalized coordinates
+        x_norm = (pixel_x - self.width/2) / self.intrinsic_matrix[0, 0]
+        y_norm = (pixel_y - self.height/2) / self.intrinsic_matrix[1, 1]
+
+        # Create ray direction (in camera frame)
+        ray_direction = np.array([x_norm, y_norm, 1.0])
+        ray_direction = ray_direction / np.linalg.norm(ray_direction)
+
+        return ray_direction
+
+    def transform_ray_to_world(self, ray_camera, camera_pose):
+        """
+        Transform ray from camera frame to world frame
+        """
+        # Extract position and orientation from camera pose
+        pos = np.array(camera_pose[:3])
+        rot = self.euler_to_rotation_matrix(camera_pose[3:])
+
+        # Transform ray direction
+        ray_world = np.dot(rot, ray_camera)
+
+        return {
+            'origin': pos,
+            'direction': ray_world
+        }
+
+    def euler_to_rotation_matrix(self, euler_angles):
+        """
+        Convert Euler angles (roll, pitch, yaw) to rotation matrix
+        """
+        roll, pitch, yaw = euler_angles
+
+        # Rotation matrices for each axis
+        R_x = np.array([
+            [1, 0, 0],
+            [0, np.cos(roll), -np.sin(roll)],
+            [0, np.sin(roll), np.cos(roll)]
+        ])
+
+        R_y = np.array([
+            [np.cos(pitch), 0, np.sin(pitch)],
+            [0, 1, 0],
+            [-np.sin(pitch), 0, np.cos(pitch)]
+        ])
+
+        R_z = np.array([
+            [np.cos(yaw), -np.sin(yaw), 0],
+            [np.sin(yaw), np.cos(yaw), 0],
+            [0, 0, 1]
+        ])
+
+        # Combined rotation matrix
+        R = np.dot(R_z, np.dot(R_y, R_x))
+        return R
+
+    def ray_scene_intersection(self, ray, scene_data):
+        """
+        Find intersection of ray with scene geometry
+        This is a simplified implementation
+        """
+        # In a real implementation, this would involve complex 3D geometry
+        # For this example, we'll simulate a simple scene with a ground plane
+
+        # Simulate intersection with ground plane at z=0
+        # Ray equation: P = origin + t * direction
+        # Ground plane: z = 0
+        # Solving for t when z=0: origin_z + t * direction_z = 0
+        # t = -origin_z / direction_z
+
+        if abs(ray['direction'][2]) < 1e-6:  # Ray is parallel to ground
+            return float('inf')
+
+        t = -ray['origin'][2] / ray['direction'][2]
+
+        if t < 0:  # Intersection is behind camera
+            return float('inf')
+
+        intersection_point = ray['origin'] + t * ray['direction']
+
+        # Check if intersection is within depth range
+        distance = np.linalg.norm(intersection_point - ray['origin'])
+
+        if distance < self.depth_range[0] or distance > self.depth_range[1]:
+            return float('inf')
+
+        return distance
+
+    def add_depth_noise(self, true_depth):
+        """
+        Add realistic noise to depth measurements
+        """
+        if true_depth == float('inf'):
+            return true_depth
+
+        # Add Gaussian noise proportional to depth (depth sensors have higher error at greater distances)
+        base_noise = np.random.normal(0, self.depth_noise_std)
+        distance_proportional_noise = np.random.normal(0, self.depth_noise_std * (true_depth / 5.0))
+
+        total_noise = base_noise + distance_proportional_noise
+
+        noisy_depth = true_depth + total_noise
+
+        # Ensure depth is within valid range
+        noisy_depth = max(self.depth_range[0], min(self.depth_range[1], noisy_depth))
+
+        return noisy_depth
+
+    def generate_point_cloud(self, depth_image, camera_pose):
+        """
+        Generate 3D point cloud from depth image
+        """
+        points = []
+        colors = []
+
+        for y in range(self.height):
+            for x in range(self.width):
+                depth = depth_image[y, x]
+
+                if depth != float('inf') and depth > 0:
+                    # Convert pixel to 3D point
+                    point_3d = self.pixel_depth_to_3d(x, y, depth)
+
+                    # Transform to world coordinates if needed
+                    if camera_pose is not None:
+                        point_3d = self.transform_point_to_world(point_3d, camera_pose)
+
+                    points.append(point_3d)
+
+                    # Add dummy color (in real implementation, would get from RGB image)
+                    colors.append([128, 128, 128])  # Gray points
+
+        return np.array(points), np.array(colors)
+
+    def pixel_depth_to_3d(self, pixel_x, pixel_y, depth):
+        """
+        Convert pixel + depth to 3D point in camera coordinates
+        """
+        # Convert pixel to normalized coordinates
+        x_norm = (pixel_x - self.width/2) / self.intrinsic_matrix[0, 0]
+        y_norm = (pixel_y - self.height/2) / self.intrinsic_matrix[1, 1]
+
+        # Calculate 3D point
+        point_3d = np.array([
+            x_norm * depth,
+            y_norm * depth,
+            depth
+        ])
+
+        return point_3d
+
+    def transform_point_to_world(self, point_3d, camera_pose):
+        """
+        Transform 3D point from camera frame to world frame
+        """
+        # Extract position and rotation from camera pose
+        translation = np.array(camera_pose[:3])
+        rotation_matrix = self.euler_to_rotation_matrix(camera_pose[3:])
+
+        # Apply transformation
+        world_point = np.dot(rotation_matrix, point_3d) + translation
+
+        return world_point
+```
+
+## IMU Sensor Simulation
+
+### IMU Physics and Modeling
+
+```python
+class IMUSimulator:
+    def __init__(self,
+                 linear_acceleration_noise=0.017,
+                 angular_velocity_noise=0.0015,
+                 orientation_noise=0.01,
+                 bias_walk_coeff=0.001):
+        """
+        Initialize IMU simulator with realistic noise characteristics
+        """
+        self.linear_acceleration_noise = linear_acceleration_noise  # m/s^2
+        self.angular_velocity_noise = angular_velocity_noise      # rad/s
+        self.orientation_noise = orientation_noise               # rad
+        self.bias_walk_coeff = bias_walk_coeff                   # Bias random walk coefficient
+
+        # IMU bias (starts at 0, will drift over time)
+        self.accel_bias = np.array([0.0, 0.0, 0.0])
+        self.gyro_bias = np.array([0.0, 0.0, 0.0])
+
+        # True values (for reference)
+        self.true_linear_acceleration = np.array([0.0, 0.0, 0.0])
+        self.true_angular_velocity = np.array([0.0, 0.0, 0.0])
+        self.true_orientation = np.array([0.0, 0.0, 0.0, 1.0])  # w, x, y, z quaternion
+
+        # Sampling rate
+        self.sample_rate = 100  # Hz
+        self.dt = 1.0 / self.sample_rate
+
+    def simulate_imu_data(self, true_state, time_step):
+        """
+        Simulate IMU measurements given true robot state
+        true_state should contain: [position, velocity, acceleration, orientation, angular_velocity]
+        """
+        # Extract true values from state
+        true_acceleration = np.array(true_state['linear_acceleration'])
+        true_angular_velocity = np.array(true_state['angular_velocity'])
+        true_orientation = np.array(true_state['orientation'])  # quaternion
+
+        # Update biases (random walk)
+        self.update_biases()
+
+        # Simulate accelerometer
+        measured_accel = self.simulate_accelerometer(
+            true_acceleration, time_step
+        )
+
+        # Simulate gyroscope
+        measured_gyro = self.simulate_gyroscope(
+            true_angular_velocity, time_step
+        )
+
+        # Simulate magnetometer (simplified)
+        measured_mag = self.simulate_magnetometer(
+            true_orientation, time_step
+        )
+
+        # Simulate orientation (with drift)
+        measured_orientation = self.simulate_orientation(
+            true_orientation, time_step
+        )
+
+        imu_data = {
+            'linear_acceleration': measured_accel,
+            'angular_velocity': measured_gyro,
+            'magnetic_field': measured_mag,
+            'orientation': measured_orientation,
+            'header': {
+                'stamp': time_step,
+                'frame_id': 'imu_frame'
+            }
+        }
+
+        return imu_data
+
+    def simulate_accelerometer(self, true_acceleration, time_step):
+        """
+        Simulate accelerometer measurements with realistic noise
+        """
+        # Add bias
+        biased_accel = true_acceleration + self.accel_bias
+
+        # Add noise
+        accel_noise = np.random.normal(
+            0, self.linear_acceleration_noise, size=3
+        )
+
+        measured_accel = biased_accel + accel_noise
+
+        # Add gravity if not already included in true acceleration
+        # Gravity vector in world frame (assuming z is up)
+        gravity = np.array([0, 0, 9.81])
+
+        # Transform gravity to body frame based on orientation
+        # This is simplified - in reality, you'd use the current orientation
+        measured_accel += gravity  # This is a simplification
+
+        return measured_accel
+
+    def simulate_gyroscope(self, true_angular_velocity, time_step):
+        """
+        Simulate gyroscope measurements with realistic noise
+        """
+        # Add bias
+        biased_gyro = true_angular_velocity + self.gyro_bias
+
+        # Add noise
+        gyro_noise = np.random.normal(
+            0, self.angular_velocity_noise, size=3
+        )
+
+        measured_gyro = biased_gyro + gyro_noise
+
+        return measured_gyro
+
+    def simulate_magnetometer(self, true_orientation, time_step):
+        """
+        Simulate magnetometer measurements
+        """
+        # Earth's magnetic field (simplified, in nT)
+        # This is a simplified model - real magnetic field varies by location
+        true_mag_field = np.array([25000, 0, -45000])  # Typical values in nT
+
+        # Add noise
+        mag_noise = np.random.normal(0, 500, size=3)  # 500 nT noise
+
+        measured_mag = true_mag_field + mag_noise
+
+        return measured_mag
+
+    def simulate_orientation(self, true_orientation, time_step):
+        """
+        Simulate orientation measurements
+        In real IMU, orientation is computed from integration of gyro data
+        with corrections from accelerometer and magnetometer
+        """
+        # Add noise to the true orientation
+        # This is a simplified approach
+        noise_quat = self.add_orientation_noise(true_orientation)
+
+        return noise_quat
+
+    def add_orientation_noise(self, true_quat):
+        """
+        Add realistic noise to quaternion orientation
+        """
+        # Convert quaternion to axis-angle representation for noise addition
+        angle = 2 * np.arccos(abs(true_quat[0]))  # Approximate angle
+        if angle > 1e-6:  # Avoid division by zero
+            axis = true_quat[1:] / np.sin(angle/2)
+            if true_quat[0] < 0:  # Handle quaternion sign
+                axis = -axis
+        else:
+            # Near identity, use arbitrary axis
+            axis = np.array([1, 0, 0])
+
+        # Add small random rotation
+        noise_angle = np.random.normal(0, self.orientation_noise)
+        noise_axis = np.random.normal(0, 0.1, size=3)
+        noise_axis = noise_axis / np.linalg.norm(noise_axis)
+
+        # Convert back to quaternion
+        noise_quat = self.axis_angle_to_quat(noise_axis, noise_angle)
+
+        # Combine with true orientation
+        noisy_quat = self.quat_multiply(true_quat, noise_quat)
+
+        # Normalize to ensure it's a valid quaternion
+        noisy_quat = noisy_quat / np.linalg.norm(noisy_quat)
+
+        return noisy_quat
+
+    def axis_angle_to_quat(self, axis, angle):
+        """
+        Convert axis-angle representation to quaternion
+        """
+        axis = axis / np.linalg.norm(axis)  # Normalize axis
+        half_angle = angle / 2
+        sin_half = np.sin(half_angle)
+
+        quat = np.array([
+            np.cos(half_angle),
+            axis[0] * sin_half,
+            axis[1] * sin_half,
+            axis[2] * sin_half
+        ])
+
+        return quat
+
+    def quat_multiply(self, q1, q2):
+        """
+        Multiply two quaternions
+        """
+        w1, x1, y1, z1 = q1
+        w2, x2, y2, z2 = q2
+
+        w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+        x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+        y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+        z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+
+        return np.array([w, x, y, z])
+
+    def update_biases(self):
+        """
+        Update IMU biases using random walk model
+        """
+        # Accelerometer bias random walk
+        accel_bias_drift = np.random.normal(
+            0, self.bias_walk_coeff * np.sqrt(self.dt), size=3
+        )
+        self.accel_bias += accel_bias_drift
+
+        # Gyroscope bias random walk
+        gyro_bias_drift = np.random.normal(
+            0, self.bias_walk_coeff * np.sqrt(self.dt), size=3
+        )
+        self.gyro_bias += gyro_bias_drift
+
+        # Limit bias drift to reasonable values
+        max_bias = 0.1  # m/s^2 or rad/s
+        self.accel_bias = np.clip(self.accel_bias, -max_bias, max_bias)
+        self.gyro_bias = np.clip(self.gyro_bias, -max_bias, max_bias)
+
+    def integrate_orientation(self, angular_velocity, dt, current_orientation):
+        """
+        Integrate angular velocity to estimate orientation
+        This simulates the internal computation of an IMU
+        """
+        # Convert angular velocity to rotation quaternion
+        angular_speed = np.linalg.norm(angular_velocity)
+
+        if angular_speed > 1e-6:  # Avoid division by zero
+            axis = angular_velocity / angular_speed
+            angle = angular_speed * dt
+
+            rotation_quat = self.axis_angle_to_quat(axis, angle)
+
+            # Apply rotation to current orientation
+            new_orientation = self.quat_multiply(current_orientation, rotation_quat)
+        else:
+            # No rotation, orientation stays the same
+            new_orientation = current_orientation
+
+        # Normalize quaternion
+        new_orientation = new_orientation / np.linalg.norm(new_orientation)
+
+        return new_orientation
+
+# Example usage
+imu = IMUSimulator()
+
+# Simulate a few time steps
+for i in range(10):
+    true_state = {
+        'linear_acceleration': np.array([0.1, 0.0, 0.2]),
+        'angular_velocity': np.array([0.01, 0.02, 0.0]),
+        'orientation': np.array([1.0, 0.0, 0.0, 0.0])  # Near identity
+    }
+
+    time_step = i * 0.01  # 100 Hz
+    imu_data = imu.simulate_imu_data(true_state, time_step)
+
+    print(f"Step {i}: Accel={imu_data['linear_acceleration'][:2]}")
+```
+
+## Multi-Modal Sensor Fusion
+
+### Sensor Fusion Framework
+
+```python
+import numpy as np
+from scipy.spatial.transform import Rotation as R
+
+class SensorFusion:
+    def __init__(self):
+        """
+        Initialize sensor fusion system for humanoid robot
+        """
+        # State vector: [x, y, z, vx, vy, vz, qx, qy, qz, qw, wx, wy, wz]
+        # Position, velocity, orientation (quaternion), angular velocity
+        self.state_dim = 13
+        self.state = np.zeros(self.state_dim)
+
+        # Covariance matrix
+        self.covariance = np.eye(self.state_dim) * 0.1
+
+        # Process noise
+        self.process_noise = np.eye(self.state_dim) * 0.01
+
+        # Sensor noise matrices
+        self.lidar_noise = np.eye(2) * 0.1  # x, y position from LiDAR features
+        self.camera_noise = np.eye(3) * 0.2  # x, y, z from visual features
+        self.imu_noise = np.eye(6) * 0.05   # linear accel + angular vel
+
+        # Initialize with identity quaternion for orientation
+        self.state[6:10] = [0, 0, 0, 1]  # x, y, z, w
+
+    def predict(self, dt, control_input=None):
+        """
+        Prediction step of the Kalman filter
+        """
+        # State transition model (simplified - assumes constant velocity model)
+        F = np.eye(self.state_dim)
+
+        # Position updates based on velocity
+        F[0, 3] = dt  # x += vx * dt
+        F[1, 4] = dt  # y += vy * dt
+        F[2, 5] = dt  # z += vz * dt
+
+        # Orientation update based on angular velocity
+        # This is a simplified approach
+        if control_input is not None:
+            # Use control input to predict orientation change
+            pass
+
+        # Update state prediction
+        self.state = F @ self.state
+
+        # Update covariance prediction
+        self.covariance = F @ self.covariance @ F.T + self.process_noise
+
+    def update_lidar(self, lidar_features):
+        """
+        Update state estimate using LiDAR measurements
+        """
+        if len(lidar_features) == 0:
+            return
+
+        # Measurement model: extract position information from LiDAR features
+        # This is simplified - in practice, you'd use landmark-based matching
+        H = np.zeros((len(lidar_features) * 2, self.state_dim))
+
+        # For each LiDAR feature, update x and y position
+        for i, feature in enumerate(lidar_features):
+            # Feature is [x, y, certainty]
+            H[i*2, 0] = 1  # Observe x position
+            H[i*2+1, 1] = 1  # Observe y position
+
+        # Measurement vector
+        z = np.array([item for feature in lidar_features for item in feature[:2]])
+
+        # Innovation
+        y = z - (H @ self.state)
+
+        # Innovation covariance
+        S = H @ self.covariance @ H.T + np.kron(np.eye(len(lidar_features)), self.lidar_noise)
+
+        # Kalman gain
+        K = self.covariance @ H.T @ np.linalg.inv(S)
+
+        # Update state and covariance
+        self.state = self.state + K @ y
+        self.covariance = (np.eye(self.state_dim) - K @ H) @ self.covariance
+
+    def update_camera(self, visual_features):
+        """
+        Update state estimate using camera measurements
+        """
+        if len(visual_features) == 0:
+            return
+
+        # Measurement model for visual features
+        H = np.zeros((len(visual_features) * 3, self.state_dim))
+
+        # For each visual feature, update x, y, z position
+        for i, feature in enumerate(visual_features):
+            # Feature is [x, y, z, certainty]
+            H[i*3, 0] = 1    # Observe x position
+            H[i*3+1, 1] = 1  # Observe y position
+            H[i*3+2, 2] = 1  # Observe z position
+
+        # Measurement vector
+        z = np.array([item for feature in visual_features for item in feature[:3]])
+
+        # Innovation
+        y = z - (H @ self.state)
+
+        # Innovation covariance
+        S = H @ self.covariance @ H.T + np.kron(np.eye(len(visual_features)), self.camera_noise)
+
+        # Kalman gain
+        K = self.covariance @ H.T @ np.linalg.inv(S)
+
+        # Update state and covariance
+        self.state = self.state + K @ y
+        self.covariance = (np.eye(self.state_dim) - K @ H) @ self.covariance
+
+    def update_imu(self, imu_data):
+        """
+        Update state estimate using IMU measurements
+        """
+        # Extract measurements from IMU data
+        linear_accel = np.array(imu_data['linear_acceleration'])
+        angular_vel = np.array(imu_data['angular_velocity'])
+
+        # Create measurement vector [linear_accel, angular_vel]
+        z = np.concatenate([linear_accel, angular_vel])
+
+        # Measurement model
+        # For simplicity, assume direct observation of acceleration and angular velocity
+        H = np.zeros((6, self.state_dim))
+        H[0:3, 0:3] = np.eye(3)  # Direct observation of acceleration
+        H[3:6, 10:13] = np.eye(3)  # Direct observation of angular velocity
+
+        # Innovation
+        y = z - (H @ self.state)
+
+        # Innovation covariance
+        S = H @ self.covariance @ H.T + self.imu_noise
+
+        # Kalman gain
+        K = self.covariance @ H.T @ np.linalg.inv(S)
+
+        # Update state and covariance
+        self.state = self.state + K @ y
+        self.covariance = (np.eye(self.state_dim) - K @ H) @ self.covariance
+
+    def get_robot_pose(self):
+        """
+        Get current robot pose (position and orientation)
+        """
+        position = self.state[0:3]
+        orientation_quat = self.state[6:10]  # x, y, z, w
+
+        return {
+            'position': position,
+            'orientation': orientation_quat,
+            'velocity': self.state[3:6],
+            'angular_velocity': self.state[10:13]
+        }
+
+    def integrate_imu_for_orientation(self, imu_data, dt):
+        """
+        Integrate IMU angular velocity to estimate orientation
+        """
+        angular_vel = np.array(imu_data['angular_velocity'])
+
+        # Convert to rotation vector
+        rotation_vector = angular_vel * dt
+
+        # Convert to quaternion
+        rotation = R.from_rotvec(rotation_vector)
+        delta_quat = rotation.as_quat()  # [x, y, z, w]
+
+        # Apply rotation to current orientation
+        current_quat = self.state[6:10]  # x, y, z, w
+        new_quat = self.quat_multiply(current_quat, delta_quat)
+
+        # Normalize
+        new_quat = new_quat / np.linalg.norm(new_quat)
+
+        # Update orientation in state
+        self.state[6:10] = new_quat
+
+    def quat_multiply(self, q1, q2):
+        """
+        Multiply two quaternions
+        """
+        w1, x1, y1, z1 = q1
+        w2, x2, y2, z2 = q2
+
+        w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+        x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+        y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+        z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+
+        return np.array([w, x, y, z])
+
+# Example usage of sensor fusion
+fusion = SensorFusion()
+
+# Simulate sensor data integration
+for step in range(100):
+    dt = 0.01  # 100 Hz
+
+    # Simulate some sensor readings
+    lidar_features = [[1.0, 2.0, 0.9], [3.0, 1.5, 0.8]]  # [x, y, certainty]
+    visual_features = [[1.1, 2.1, 0.5, 0.95]]  # [x, y, z, certainty]
+
+    # Simulated IMU data
+    imu_data = {
+        'linear_acceleration': [0.1, 0.05, 9.81],
+        'angular_velocity': [0.01, 0.02, 0.005],
+        'orientation': [0.01, 0.02, 0.005, 0.999]
+    }
+
+    # Prediction step
+    fusion.predict(dt)
+
+    # Update with sensor data
+    fusion.update_lidar(lidar_features)
+    fusion.update_camera(visual_features)
+    fusion.update_imu(imu_data)
+
+    # Integrate IMU for better orientation estimate
+    fusion.integrate_imu_for_orientation(imu_data, dt)
+
+    if step % 20 == 0:  # Print every 20 steps
+        pose = fusion.get_robot_pose()
+        print(f"Step {step}: Position={pose['position'][:2]}, "
+              f"Orientation (first 3)={pose['orientation'][:3]}")
+```
+
+### Extended Sensor Fusion with Deep Learning
+
+```python
+import torch
+import torch.nn as nn
+import numpy as np
+
+class DeepSensorFusion(nn.Module):
+    def __init__(self, lidar_features=720, camera_features=256, imu_features=6):
+        """
+        Deep learning-based sensor fusion for humanoid robot
+        """
+        super(DeepSensorFusion, self).__init__()
+
+        self.lidar_features = lidar_features
+        self.camera_features = camera_features
+        self.imu_features = imu_features
+
+        # Feature extraction networks for each sensor modality
+        self.lidar_encoder = nn.Sequential(
+            nn.Linear(lidar_features, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU()
+        )
+
+        self.camera_encoder = nn.Sequential(
+            nn.Linear(camera_features, 256),
+            nn.ReLU(),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU()
+        )
+
+        self.imu_encoder = nn.Sequential(
+            nn.Linear(imu_features, 64),
+            nn.ReLU(),
+            nn.Linear(64, 32),
+            nn.ReLU()
+        )
+
+        # Attention mechanism to weight different sensors
+        self.attention = nn.MultiheadAttention(embed_dim=64, num_heads=4)
+
+        # Fusion network
+        self.fusion_network = nn.Sequential(
+            nn.Linear(64 + 64 + 32, 256),  # Combined sensor features
+            nn.ReLU(),
+            nn.Dropout(0.3),
+            nn.Linear(256, 128),
+            nn.ReLU(),
+            nn.Linear(128, 64),
+            nn.ReLU(),
+            nn.Linear(64, 13)  # Output: [x, y, z, vx, vy, vz, qx, qy, qz, qw, wx, wy, wz]
+        )
+
+        # Uncertainty estimation
+        self.uncertainty_head = nn.Sequential(
+            nn.Linear(64 + 64 + 32, 64),
+            nn.ReLU(),
+            nn.Linear(64, 13),  # Uncertainty for each state variable
+            nn.Softplus()  # Ensure positive uncertainty values
+        )
+
+    def forward(self, lidar_data, camera_data, imu_data):
+        """
+        Forward pass through the fusion network
+        """
+        # Encode each sensor modality
+        lidar_features = self.lidar_encoder(lidar_data)
+        camera_features = self.camera_encoder(camera_data)
+        imu_features = self.imu_encoder(imu_data)
+
+        # Apply attention mechanism to weight sensor contributions
+        # Reshape for attention: (seq_len, batch, embed_dim)
+        sensor_features = torch.stack([lidar_features, camera_features], dim=0)
+
+        # Self-attention across sensor modalities
+        attended_features, attention_weights = self.attention(
+            sensor_features, sensor_features, sensor_features
+        )
+
+        # Flatten attended features and add IMU features
+        attended_flat = attended_features.view(attended_features.size(1), -1)
+        combined_features = torch.cat([attended_flat, imu_features], dim=1)
+
+        # Get state estimate
+        state_estimate = self.fusion_network(combined_features)
+
+        # Get uncertainty estimate
+        uncertainty = self.uncertainty_head(combined_features)
+
+        return state_estimate, uncertainty, attention_weights
+
+    def train_fusion(self, training_data, epochs=100, lr=0.001):
+        """
+        Train the fusion network
+        """
+        optimizer = torch.optim.Adam(self.parameters(), lr=lr)
+        criterion = nn.MSELoss()
+
+        for epoch in range(epochs):
+            total_loss = 0
+
+            for batch_idx, (lidar_batch, camera_batch, imu_batch, true_state_batch) in enumerate(training_data):
+                optimizer.zero_grad()
+
+                # Forward pass
+                state_pred, uncertainty, _ = self(lidar_batch, camera_batch, imu_batch)
+
+                # Calculate loss
+                loss = criterion(state_pred, true_state_batch)
+
+                # Backward pass
+                loss.backward()
+                optimizer.step()
+
+                total_loss += loss.item()
+
+            avg_loss = total_loss / len(training_data)
+            print(f"Epoch {epoch+1}/{epochs}, Loss: {avg_loss:.6f}")
+
+# Example usage (without actual training data)
+if __name__ == "__main__":
+    # Initialize the deep fusion network
+    deep_fusion = DeepSensorFusion()
+
+    # Example batch of sensor data (in practice, these would come from your simulators)
+    batch_size = 32
+    lidar_batch = torch.randn(batch_size, 720)  # 720 LiDAR beams
+    camera_batch = torch.randn(batch_size, 256)  # Flattened camera features
+    imu_batch = torch.randn(batch_size, 6)      # 3 linear accel + 3 angular vel
+
+    # Forward pass
+    state_estimate, uncertainty, attention_weights = deep_fusion(
+        lidar_batch, camera_batch, imu_batch
+    )
+
+    print(f"State estimate shape: {state_estimate.shape}")
+    print(f"Uncertainty shape: {uncertainty.shape}")
+    print(f"Attention weights shape: {attention_weights.shape}")
+
+    print(f"Sample state estimate: {state_estimate[0].detach().numpy()[:6]}")
+    print(f"Sample uncertainty: {uncertainty[0].detach().numpy()[:6]}")
+```
+
+## Sensor Validation and Calibration
+
+### Sensor Validation Framework
+
+```python
+class SensorValidator:
+    def __init__(self):
+        """
+        Framework for validating sensor simulations against real-world data
+        """
+        self.validation_metrics = {
+            'accuracy': self.calculate_accuracy,
+            'precision': self.calculate_precision,
+            'recall': self.calculate_recall,
+            'rmse': self.calculate_rmse,
+            'bias': self.calculate_bias,
+            'noise_level': self.calculate_noise_level
+        }
+
+    def calculate_accuracy(self, predicted, actual):
+        """
+        Calculate accuracy of sensor predictions
+        """
+        if len(predicted) != len(actual):
+            raise ValueError("Predicted and actual arrays must have same length")
+
+        errors = np.abs(predicted - actual)
+        accuracy = 1.0 - np.mean(errors) / np.mean(np.abs(actual))
+        return max(0, accuracy)  # Accuracy should be between 0 and 1
+
+    def calculate_rmse(self, predicted, actual):
+        """
+        Calculate Root Mean Square Error
+        """
+        mse = np.mean((predicted - actual) ** 2)
+        return np.sqrt(mse)
+
+    def calculate_bias(self, predicted, actual):
+        """
+        Calculate bias (systematic error) in sensor readings
+        """
+        errors = predicted - actual
+        return np.mean(errors)
+
+    def calculate_noise_level(self, readings):
+        """
+        Calculate noise level in sensor readings (standard deviation of residuals)
+        """
+        if len(readings) < 2:
+            return 0.0
+
+        # Calculate differences between consecutive readings
+        diffs = np.diff(readings, axis=0)
+
+        # Noise is characterized by these differences
+        noise_level = np.std(diffs, axis=0)
+
+        return noise_level
+
+    def validate_lidar_simulation(self, sim_readings, real_readings):
+        """
+        Validate LiDAR simulation against real data
+        """
+        # Ensure both have same dimensions
+        if sim_readings.shape != real_readings.shape:
+            # Truncate to minimum length
+            min_len = min(len(sim_readings), len(real_readings))
+            sim_readings = sim_readings[:min_len]
+            real_readings = real_readings[:min_len]
+
+        results = {}
+
+        # Calculate various metrics
+        results['rmse'] = self.calculate_rmse(sim_readings, real_readings)
+        results['bias'] = self.calculate_bias(sim_readings, real_readings)
+        results['noise_level'] = self.calculate_noise_level(sim_readings)
+
+        # Calculate accuracy (for valid readings only)
+        valid_mask = (real_readings < float('inf')) & (sim_readings < float('inf'))
+        if np.any(valid_mask):
+            results['accuracy'] = self.calculate_accuracy(
+                sim_readings[valid_mask], real_readings[valid_mask]
+            )
+        else:
+            results['accuracy'] = 0.0
+
+        # Calculate precision and recall for obstacle detection
+        # Define obstacles as readings below a threshold (e.g., 2 meters)
+        obstacle_threshold = 2.0
+        sim_obstacles = sim_readings < obstacle_threshold
+        real_obstacles = real_readings < obstacle_threshold
+
+        true_positives = np.sum(sim_obstacles & real_obstacles)
+        false_positives = np.sum(sim_obstacles & ~real_obstacles)
+        false_negatives = np.sum(~sim_obstacles & real_obstacles)
+
+        if (true_positives + false_positives) > 0:
+            results['precision'] = true_positives / (true_positives + false_positives)
+        else:
+            results['precision'] = 0.0
+
+        if (true_positives + false_negatives) > 0:
+            results['recall'] = true_positives / (true_positives + false_negatives)
+        else:
+            results['recall'] = 0.0
+
+        return results
+
+    def validate_camera_simulation(self, sim_image, real_image):
+        """
+        Validate camera simulation using image similarity metrics
+        """
+        # Convert to grayscale for comparison
+        if len(sim_image.shape) == 3:
+            sim_gray = np.mean(sim_image, axis=2)
+            real_gray = np.mean(real_image, axis=2)
+        else:
+            sim_gray = sim_image
+            real_gray = real_image
+
+        results = {}
+
+        # Calculate structural similarity (SSIM) - simplified version
+        # In practice, use scikit-image or OpenCV for proper SSIM
+        results['mse'] = np.mean((sim_gray - real_gray) ** 2)
+        results['rmse'] = np.sqrt(results['mse'])
+
+        # Calculate image histogram similarity
+        sim_hist, _ = np.histogram(sim_gray, bins=50, range=(0, 255))
+        real_hist, _ = np.histogram(real_gray, bins=50, range=(0, 255))
+
+        # Histogram intersection as similarity measure
+        hist_intersection = np.sum(np.minimum(sim_hist, real_hist))
+        hist_total = np.sum(np.maximum(sim_hist, real_hist))
+        results['histogram_similarity'] = hist_intersection / hist_total if hist_total > 0 else 0.0
+
+        return results
+
+    def validate_imu_simulation(self, sim_imu_data, real_imu_data):
+        """
+        Validate IMU simulation against real data
+        """
+        results = {}
+
+        # Validate linear acceleration
+        if 'linear_acceleration' in sim_imu_data and 'linear_acceleration' in real_imu_data:
+            sim_acc = np.array(sim_imu_data['linear_acceleration'])
+            real_acc = np.array(real_imu_data['linear_acceleration'])
+
+            results['acceleration_rmse'] = self.calculate_rmse(sim_acc, real_acc)
+            results['acceleration_bias'] = self.calculate_bias(sim_acc, real_acc)
+
+        # Validate angular velocity
+        if 'angular_velocity' in sim_imu_data and 'angular_velocity' in real_imu_data:
+            sim_gyro = np.array(sim_imu_data['angular_velocity'])
+            real_gyro = np.array(real_imu_data['angular_velocity'])
+
+            results['gyro_rmse'] = self.calculate_rmse(sim_gyro, real_gyro)
+            results['gyro_bias'] = self.calculate_bias(sim_gyro, real_gyro)
+
+        # Validate orientation
+        if 'orientation' in sim_imu_data and 'orientation' in real_imu_data:
+            sim_orient = np.array(sim_imu_data['orientation'])
+            real_orient = np.array(real_imu_data['orientation'])
+
+            # Calculate orientation error using quaternion distance
+            # Convert quaternions to rotation vectors for error calculation
+            results['orientation_rmse'] = self.calculate_rmse(sim_orient, real_orient)
+
+        return results
+
+    def run_comprehensive_validation(self, sensor_simulators, real_data):
+        """
+        Run comprehensive validation of all sensor simulators
+        """
+        validation_results = {}
+
+        # Validate LiDAR
+        if hasattr(sensor_simulators, 'lidar'):
+            lidar_results = self.validate_lidar_simulation(
+                sensor_simulators.lidar.simulated_data,
+                real_data.get('lidar', np.array([]))
+            )
+            validation_results['lidar'] = lidar_results
+
+        # Validate Camera
+        if hasattr(sensor_simulators, 'camera'):
+            camera_results = self.validate_camera_simulation(
+                sensor_simulators.camera.simulated_image,
+                real_data.get('camera', np.zeros((480, 640)))
+            )
+            validation_results['camera'] = camera_results
+
+        # Validate IMU
+        if hasattr(sensor_simulators, 'imu'):
+            imu_results = self.validate_imu_simulation(
+                sensor_simulators.imu.simulated_data,
+                real_data.get('imu', {})
+            )
+            validation_results['imu'] = imu_results
+
+        # Calculate overall validation score
+        overall_score = self.calculate_overall_score(validation_results)
+        validation_results['overall_score'] = overall_score
+
+        return validation_results
+
+    def calculate_overall_score(self, validation_results):
+        """
+        Calculate overall validation score combining all sensors
+        """
+        scores = []
+
+        for sensor_type, results in validation_results.items():
+            if sensor_type != 'overall_score' and 'rmse' in results:
+                # Convert RMSE to a score (lower RMSE = higher score)
+                # Use inverse relationship, normalized to 0-1 range
+                rmse = results['rmse']
+                max_expected_rmse = 1.0  # Adjust based on sensor type
+                score = max(0, 1 - (rmse / max_expected_rmse))
+                scores.append(score)
+
+        if scores:
+            return np.mean(scores)
+        else:
+            return 0.0
+
+    def generate_validation_report(self, validation_results):
+        """
+        Generate a comprehensive validation report
+        """
+        report = []
+        report.append("=== Sensor Simulation Validation Report ===\n")
+
+        for sensor_type, results in validation_results.items():
+            if sensor_type == 'overall_score':
+                report.append(f"Overall Validation Score: {results:.3f}\n")
+                continue
+
+            report.append(f"--- {sensor_type.upper()} Validation ---")
+
+            for metric, value in results.items():
+                if isinstance(value, np.ndarray):
+                    report.append(f"  {metric}: {value}")
+                else:
+                    report.append(f"  {metric}: {value:.6f}")
+            report.append("")  # Empty line between sensors
+
+        return "\n".join(report)
+
+# Example usage
+validator = SensorValidator()
+
+# Example validation (with dummy data)
+real_lidar_data = np.random.uniform(0.1, 10.0, size=720)
+sim_lidar_data = real_lidar_data + np.random.normal(0, 0.05, size=720)
+
+lidar_validation = validator.validate_lidar_simulation(sim_lidar_data, real_lidar_data)
+print(f"LiDAR Validation Results: {lidar_validation}")
+```
+
+## Performance Optimization
+
+### Efficient Sensor Simulation
+
+```python
+import threading
+import queue
+import time
+
+class OptimizedSensorSimulator:
+    def __init__(self):
+        """
+        Optimized sensor simulator with multi-threading and caching
+        """
+        self.sensors = {}
+        self.data_cache = {}
+        self.cache_size_limit = 100  # Number of frames to cache
+        self.update_rate = 100  # Hz
+        self.dt = 1.0 / self.update_rate
+
+        # Threading for parallel sensor updates
+        self.sensor_threads = []
+        self.data_queue = queue.Queue()
+
+        # Performance metrics
+        self.metrics = {
+            'update_times': [],
+            'frame_rates': [],
+            'memory_usage': []
+        }
+
+    def add_sensor(self, sensor_name, sensor_object):
+        """
+        Add a sensor to the simulation system
+        """
+        self.sensors[sensor_name] = {
+            'object': sensor_object,
+            'last_update': 0,
+            'enabled': True
+        }
+
+    def update_sensors_parallel(self, robot_state, time_stamp):
+        """
+        Update all sensors in parallel using threading
+        """
+        start_time = time.time()
+
+        # Create threads for each sensor update
+        threads = []
+
+        for sensor_name, sensor_info in self.sensors.items():
+            if sensor_info['enabled']:
+                thread = threading.Thread(
+                    target=self._update_single_sensor,
+                    args=(sensor_name, robot_state, time_stamp)
+                )
+                threads.append(thread)
+                thread.start()
+
+        # Wait for all threads to complete
+        for thread in threads:
+            thread.join()
+
+        update_time = time.time() - start_time
+        self.metrics['update_times'].append(update_time)
+
+        # Maintain cache size limit
+        if len(self.metrics['update_times']) > self.cache_size_limit:
+            self.metrics['update_times'] = self.metrics['update_times'][-self.cache_size_limit:]
+
+    def _update_single_sensor(self, sensor_name, robot_state, time_stamp):
+        """
+        Update a single sensor (run in separate thread)
+        """
+        sensor_info = self.sensors[sensor_name]
+        sensor = sensor_info['object']
+
+        # Call the sensor's update method
+        if hasattr(sensor, 'simulate'):
+            sensor_data = sensor.simulate(robot_state, time_stamp)
+        else:
+            # Assume it's one of our simulator classes
+            sensor_data = sensor.simulate_scan(robot_state, {}, robot_state['position']) \
+                if hasattr(sensor, 'simulate_scan') else \
+                sensor.simulate_imu_data(robot_state, time_stamp) \
+                if hasattr(sensor, 'simulate_imu_data') else \
+                sensor.simulate_rgb_image({}, robot_state) \
+                if hasattr(sensor, 'simulate_rgb_image') else None
+
+        # Cache the result
+        cache_key = f"{sensor_name}_{time_stamp}"
+        self.data_cache[cache_key] = sensor_data
+
+        # Maintain cache size limit
+        if len(self.data_cache) > self.cache_size_limit:
+            # Remove oldest entries
+            oldest_key = list(self.data_cache.keys())[0]
+            del self.data_cache[oldest_key]
+
+    def get_sensor_data(self, sensor_name, time_stamp):
+        """
+        Get sensor data from cache or compute if not available
+        """
+        cache_key = f"{sensor_name}_{time_stamp}"
+
+        if cache_key in self.data_cache:
+            return self.data_cache[cache_key]
+        else:
+            # Compute on demand (shouldn't happen in normal operation)
+            print(f"Warning: Cache miss for {sensor_name} at {time_stamp}")
+            return None
+
+    def optimize_for_robot_density(self, num_robots):
+        """
+        Adjust simulation parameters based on number of robots
+        """
+        if num_robots > 10:
+            # Reduce update rate for many robots
+            self.update_rate = max(30, 100 - (num_robots - 10) * 2)
+            self.dt = 1.0 / self.update_rate
+        elif num_robots < 5:
+            # Increase update rate for few robots
+            self.update_rate = min(200, 100 + (5 - num_robots) * 10)
+            self.dt = 1.0 / self.update_rate
+
+    def enable_sensor(self, sensor_name, enabled=True):
+        """
+        Enable or disable a sensor to optimize performance
+        """
+        if sensor_name in self.sensors:
+            self.sensors[sensor_name]['enabled'] = enabled
+
+    def get_performance_metrics(self):
+        """
+        Get current performance metrics
+        """
+        if not self.metrics['update_times']:
+            return {
+                'avg_update_time': 0,
+                'current_fps': 0,
+                'cache_size': len(self.data_cache)
+            }
+
+        avg_update_time = np.mean(self.metrics['update_times'])
+        current_fps = 1.0 / avg_update_time if avg_update_time > 0 else 0
+
+        return {
+            'avg_update_time': avg_update_time,
+            'current_fps': current_fps,
+            'cache_size': len(self.data_cache),
+            'num_sensors': len(self.sensors)
+        }
+
+    def adaptive_quality_control(self, target_fps=60):
+        """
+        Adjust simulation quality based on performance
+        """
+        metrics = self.get_performance_metrics()
+
+        if metrics['current_fps'] < target_fps * 0.8:
+            # Performance is degrading, reduce quality
+            print("Performance degradation detected, reducing quality...")
+            # This would adjust sensor parameters like resolution, range, etc.
+            pass
+        elif metrics['current_fps'] > target_fps * 1.2:
+            # Performance is better than needed, can increase quality
+            print("Performance headroom detected, increasing quality...")
+            # This would adjust sensor parameters for higher quality
+            pass
+
+# Example usage
+optimizer = OptimizedSensorSimulator()
+
+# Add simulators
+lidar_sim = LiDARSimulator(num_beams=360, max_range=10.0)
+imu_sim = IMUSimulator()
+camera_sim = CameraSimulator(width=640, height=480, fov=60)
+
+optimizer.add_sensor('lidar', lidar_sim)
+optimizer.add_sensor('imu', imu_sim)
+optimizer.add_sensor('camera', camera_sim)
+
+# Simulate robot state
+robot_state = {
+    'position': np.array([0.0, 0.0]),
+    'orientation': [0.0, 0.0, 0.0, 1.0],
+    'linear_acceleration': [0.1, 0.0, 9.81],
+    'angular_velocity': [0.01, 0.02, 0.005]
+}
+
+# Update sensors in parallel
+optimizer.update_sensors_parallel(robot_state, time.time())
+
+# Get performance metrics
+metrics = optimizer.get_performance_metrics()
+print(f"Performance metrics: {metrics}")
+```
+
+## Best Practices and Guidelines
+
+### Sensor Simulation Best Practices
+
+1. **Realistic Noise Modeling**: Include appropriate noise models that match real sensor characteristics
+2. **Physics-Based Simulation**: Base simulations on actual physical principles
+3. **Calibration Validation**: Regularly validate simulation outputs against real sensor data
+4. **Computational Efficiency**: Optimize for real-time performance while maintaining accuracy
+5. **Multi-Sensor Integration**: Ensure sensors work together coherently
+6. **Environmental Variation**: Test across diverse environmental conditions
+
+### Troubleshooting Common Issues
+
+```python
+class SensorSimulationTroubleshooter:
+    def __init__(self):
+        self.common_issues = {
+            'noise_excessive': self.troubleshoot_excessive_noise,
+            'latency_high': self.troubleshoot_high_latency,
+            'drift_accumulation': self.troubleshoot_drift,
+            'calibration_error': self.troubleshoot_calibration,
+            'sync_issues': self.troubleshoot_synchronization
+        }
+
+    def troubleshoot_excessive_noise(self):
+        """
+        Common fixes for excessive sensor noise
+        """
+        fixes = [
+            "Verify noise parameters match real sensor specifications",
+            "Check random number generator seeding",
+            "Validate noise models for the specific sensor type",
+            "Ensure proper signal-to-noise ratio implementation",
+            "Review environmental noise factors"
+        ]
+        return fixes
+
+    def troubleshoot_high_latency(self):
+        """
+        Common fixes for high sensor simulation latency
+        """
+        fixes = [
+            "Reduce sensor resolution or range if possible",
+            "Implement multi-threading for sensor updates",
+            "Use spatial partitioning for ray casting",
+            "Optimize collision detection algorithms",
+            "Implement data caching strategies"
+        ]
+        return fixes
+
+    def troubleshoot_drift(self):
+        """
+        Common fixes for sensor drift issues
+        """
+        fixes = [
+            "Implement proper bias modeling and random walk",
+            "Add sensor fusion to correct drift",
+            "Validate integration algorithms",
+            "Check time step consistency",
+            "Implement periodic recalibration"
+        ]
+        return fixes
+
+    def troubleshoot_calibration(self):
+        """
+        Common fixes for calibration issues
+        """
+        fixes = [
+            "Verify transformation matrices between sensor frames",
+            "Check coordinate system conventions (ROS vs others)",
+            "Validate intrinsic and extrinsic parameters",
+            "Ensure consistent units across all calculations",
+            "Test with known calibration targets"
+        ]
+        return fixes
+
+    def troubleshoot_synchronization(self):
+        """
+        Common fixes for sensor synchronization issues
+        """
+        fixes = [
+            "Implement proper timestamping for all sensor data",
+            "Use hardware or software synchronization where possible",
+            "Validate time base consistency across sensors",
+            "Implement interpolation for asynchronous data",
+            "Check for buffer overflows or underflows"
+        ]
+        return fixes
+
+    def run_diagnostic(self, sensor_type, issue_description):
+        """
+        Run diagnostic for specific sensor and issue
+        """
+        print(f"Running diagnostic for {sensor_type}: {issue_description}")
+
+        # Based on issue type, suggest relevant fixes
+        if 'noise' in issue_description.lower():
+            return self.troubleshoot_excessive_noise()
+        elif 'latency' in issue_description.lower() or 'delay' in issue_description.lower():
+            return self.troubleshoot_high_latency()
+        elif 'drift' in issue_description.lower():
+            return self.troubleshoot_drift()
+        elif 'calibration' in issue_description.lower():
+            return self.troubleshoot_calibration()
+        elif 'sync' in issue_description.lower() or 'time' in issue_description.lower():
+            return self.troubleshoot_synchronization()
+        else:
+            # Generic troubleshooting
+            return [
+                "Verify sensor configuration parameters",
+                "Check for software version compatibility",
+                "Validate hardware specifications",
+                "Review simulation environment setup",
+                "Consult sensor-specific documentation"
+            ]
+
+# Example usage
+troubleshooter = SensorSimulationTroubleshooter()
+issues = troubleshooter.run_diagnostic('LiDAR', 'excessive noise in distance measurements')
+print(f"Troubleshooting suggestions: {issues}")
+```
+
+## Summary
+
+Sensor simulation integration is fundamental to developing robust humanoid robots, providing realistic perception capabilities for navigation, interaction, and safety. This chapter covered the simulation of key sensor modalities including LiDAR, cameras, and IMUs, with emphasis on realistic physics modeling, noise characteristics, and multi-modal fusion. The integration of these sensors through advanced fusion algorithms enables humanoid robots to perceive and interact with their environment effectively. Proper validation and optimization ensure that simulated sensors provide accurate and efficient perception capabilities that translate well to real-world deployment.
+
+## Exercises
+
+1. Implement a custom LiDAR simulator with material-specific reflection properties
+2. Create a sensor fusion system that combines LiDAR, camera, and IMU data for humanoid localization
+3. Develop a validation framework comparing simulated and real sensor data
+4. Design an adaptive sensor simulation system that adjusts quality based on computational resources
+5. Implement a deep learning-based sensor fusion approach for humanoid robot perception

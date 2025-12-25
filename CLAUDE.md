@@ -208,3 +208,11 @@ Wait for consent; never auto-create ADRs. Group related decisions (stacks, authe
 
 ## Code Standards
 See `.specify/memory/constitution.md` for code quality, testing, performance, security, and architecture principles.
+
+## Active Technologies
+- Node.js LTS, JavaScript/TypeScript for Docusaurus framework + Docusaurus framework, Context7 MCP for documentation verification, Claude Code for AI assistance (001-syllabus-book-spec)
+- File-based storage for Markdown/MDX content, Git for versioning (001-syllabus-book-spec)
+- Node.js LTS, JavaScript/TypeScript for Docusaurus framework + Docusaurus framework, Context7 MCP for robotics documentation verification, Claude Code for AI assistance (002-physical-ai-robotics-book)
+
+## Recent Changes
+- 001-syllabus-book-spec: Added Node.js LTS, JavaScript/TypeScript for Docusaurus framework + Docusaurus framework, Context7 MCP for documentation verification, Claude Code for AI assistance

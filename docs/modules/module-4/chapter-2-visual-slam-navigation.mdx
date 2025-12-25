@@ -1,0 +1,1618 @@
+---
+title: "Chapter 2: Visual SLAM and Navigation"
+description: "Perception and navigation planning with Isaac and Nav2 for humanoid robots"
+hide_table_of_contents: false
+keywords: ["Visual SLAM", "Navigation", "SLAM", "Path Planning", "Humanoid Robotics", "Computer Vision"]
+sidebar_position: 2
+---
+
+# Chapter 2: Visual SLAM and Navigation
+
+## Learning Objectives
+- Understand Visual SLAM principles and algorithms for humanoid robotics
+- Implement navigation systems using Isaac Sim and Nav2
+- Design path planning algorithms for humanoid locomotion
+- Integrate perception and navigation for autonomous humanoid robots
+- Validate navigation performance in complex environments
+
+## Introduction to Visual SLAM
+
+Visual Simultaneous Localization and Mapping (SLAM) is a critical technology for humanoid robots, enabling them to understand and navigate in unknown environments using visual sensors. Unlike wheeled robots, humanoid robots face unique challenges in SLAM due to their dynamic motion, changing viewpoints, and the need to maintain balance while perceiving the environment.
+
+### SLAM Fundamentals for Humanoid Robots
+
+Visual SLAM systems for humanoid robots must handle:
+- **Dynamic motion**: Humanoid robots move in 6-DOF, creating complex viewpoint changes
+- **Sensor fusion**: Integration of cameras with IMUs, LiDAR, and other sensors
+- **Real-time constraints**: Navigation decisions must be made quickly for safety
+- **Balance considerations**: Perception algorithms must not compromise stability
+
+```python
+import numpy as np
+import cv2
+from scipy.spatial.transform import Rotation as R
+import matplotlib.pyplot as plt
+from typing import List, Tuple, Dict
+import threading
+import queue
+
+class VisualSLAM:
+    def __init__(self, camera_matrix: np.ndarray, initial_pose: np.ndarray = None):
+        """
+        Initialize Visual SLAM system for humanoid robot
+
+        Args:
+            camera_matrix: 3x3 camera intrinsic matrix
+            initial_pose: Initial 4x4 pose matrix (optional)
+        """
+        self.camera_matrix = camera_matrix
+        self.dist_coeffs = np.zeros((4, 1))  # Assuming no distortion
+
+        # Initialize pose (identity if not provided)
+        self.current_pose = initial_pose if initial_pose is not None else np.eye(4)
+
+        # Feature detection and matching
+        self.feature_detector = cv2.ORB_create(nfeatures=1000)
+        self.descriptor_matcher = cv2.BFMatcher(cv2.NORM_HAMMING, crossCheck=False)
+
+        # Keyframe management
+        self.keyframes = []
+        self.current_frame = None
+        self.previous_frame = None
+
+        # Map representation
+        self.map_points = []  # 3D points in world coordinates
+        self.local_map = {}   # For local mapping around robot
+
+        # Pose graph optimization
+        self.pose_graph = []
+
+        # Tracking state
+        self.is_tracking = False
+        self.tracking_confidence = 0.0
+
+    def process_frame(self, image: np.ndarray, timestamp: float) -> Dict:
+        """
+        Process a single camera frame for SLAM
+
+        Args:
+            image: Input image from robot's camera
+            timestamp: Timestamp of the image
+
+        Returns:
+            Dictionary containing SLAM results
+        """
+        # Extract features from current frame
+        keypoints, descriptors = self.extract_features(image)
+
+        frame_data = {
+            'image': image,
+            'keypoints': keypoints,
+            'descriptors': descriptors,
+            'timestamp': timestamp,
+            'pose': self.current_pose.copy()
+        }
+
+        if self.previous_frame is not None:
+            # Estimate motion between frames
+            motion_estimate = self.estimate_motion(self.previous_frame, frame_data)
+            if motion_estimate is not None:
+                # Update pose
+                self.current_pose = self.current_pose @ motion_estimate
+
+                # Update map with new observations
+                self.update_map(frame_data)
+
+                # Check if we need a new keyframe
+                if self.should_create_keyframe(frame_data):
+                    self.add_keyframe(frame_data)
+
+        # Store current frame for next iteration
+        self.previous_frame = frame_data
+        self.current_frame = frame_data
+
+        # Return SLAM results
+        results = {
+            'current_pose': self.current_pose,
+            'tracked_features': len(keypoints),
+            'map_size': len(self.map_points),
+            'confidence': self.estimate_tracking_confidence()
+        }
+
+        return results
+
+    def extract_features(self, image: np.ndarray) -> Tuple[List, np.ndarray]:
+        """
+        Extract features from an image
+
+        Args:
+            image: Input image
+
+        Returns:
+            Tuple of (keypoints, descriptors)
+        """
+        # Convert to grayscale if needed
+        if len(image.shape) == 3:
+            gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
+        else:
+            gray = image
+
+        # Detect and compute descriptors
+        keypoints = self.feature_detector.detect(gray)
+        if keypoints:
+            keypoints, descriptors = self.feature_detector.compute(gray, keypoints)
+        else:
+            descriptors = np.array([])
+
+        return keypoints, descriptors
+
+    def estimate_motion(self, prev_frame: Dict, curr_frame: Dict) -> np.ndarray:
+        """
+        Estimate relative motion between two frames
+
+        Args:
+            prev_frame: Previous frame data
+            curr_frame: Current frame data
+
+        Returns:
+            4x4 transformation matrix or None if motion estimation fails
+        """
+        if prev_frame['descriptors'] is None or curr_frame['descriptors'] is None:
+            return None
+
+        if len(prev_frame['descriptors']) == 0 or len(curr_frame['descriptors']) == 0:
+            return None
+
+        # Match features between frames
+        matches = self.descriptor_matcher.knnMatch(
+            prev_frame['descriptors'],
+            curr_frame['descriptors'],
+            k=2
+        )
+
+        # Apply Lowe's ratio test to filter good matches
+        good_matches = []
+        for match_pair in matches:
+            if len(match_pair) == 2:
+                m, n = match_pair
+                if m.distance < 0.75 * n.distance:
+                    good_matches.append(m)
+
+        if len(good_matches) < 10:  # Need minimum matches for reliable pose estimation
+            return None
+
+        # Get matched points
+        prev_pts = np.float32([prev_frame['keypoints'][m.queryIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+        curr_pts = np.float32([curr_frame['keypoints'][m.trainIdx].pt for m in good_matches]).reshape(-1, 1, 2)
+
+        # Estimate essential matrix
+        E, mask = cv2.findEssentialMat(
+            curr_pts, prev_pts,
+            self.camera_matrix,
+            method=cv2.RANSAC,
+            threshold=1.0,
+            prob=0.999
+        )
+
+        if E is None:
+            return None
+
+        # Decompose essential matrix to get rotation and translation
+        _, R, t, mask_pose = cv2.recoverPose(E, curr_pts, prev_pts, self.camera_matrix)
+
+        # Create transformation matrix
+        T = np.eye(4)
+        T[:3, :3] = R
+        T[:3, 3] = t.ravel()
+
+        return T
+
+    def update_map(self, frame_data: Dict):
+        """
+        Update the map with new observations from the frame
+        """
+        # In a real implementation, this would involve triangulation of matched features
+        # to create 3D points and update the map
+        pass
+
+    def should_create_keyframe(self, frame_data: Dict) -> bool:
+        """
+        Determine if a new keyframe should be created
+        """
+        # Create keyframe if:
+        # 1. No keyframes exist yet
+        if len(self.keyframes) == 0:
+            return True
+
+        # 2. Significant motion has occurred
+        last_keyframe_pose = self.keyframes[-1]['pose']
+        current_pose = frame_data['pose']
+
+        # Calculate distance and rotation from last keyframe
+        pos_diff = np.linalg.norm(current_pose[:3, 3] - last_keyframe_pose[:3, 3])
+        rot_diff = R.from_matrix(current_pose[:3, :3]).as_rotvec()
+        rot_magnitude = np.linalg.norm(rot_diff)
+
+        # Thresholds for keyframe creation
+        position_threshold = 0.5  # meters
+        rotation_threshold = 0.3  # radians (~17 degrees)
+
+        return pos_diff > position_threshold or rot_magnitude > rotation_threshold
+
+    def add_keyframe(self, frame_data: Dict):
+        """
+        Add a new keyframe to the map
+        """
+        keyframe = frame_data.copy()
+        keyframe['frame_id'] = len(self.keyframes)
+        self.keyframes.append(keyframe)
+
+    def estimate_tracking_confidence(self) -> float:
+        """
+        Estimate the confidence of the current tracking
+        """
+        if self.previous_frame is None:
+            return 0.0
+
+        # Confidence based on number of tracked features
+        if 'keypoints' in self.current_frame and self.current_frame['keypoints'] is not None:
+            num_features = len(self.current_frame['keypoints'])
+            # Normalize by maximum expected features
+            confidence = min(1.0, num_features / 500.0)
+        else:
+            confidence = 0.0
+
+        return confidence
+
+    def get_local_map(self, radius: float = 5.0) -> Dict:
+        """
+        Get local map around current robot position
+
+        Args:
+            radius: Radius around robot to include in local map
+
+        Returns:
+            Dictionary containing local map information
+        """
+        current_pos = self.current_pose[:3, 3]
+        local_points = []
+
+        for point in self.map_points:
+            if np.linalg.norm(point - current_pos) <= radius:
+                local_points.append(point)
+
+        return {
+            'center': current_pos,
+            'radius': radius,
+            'points': local_points,
+            'point_count': len(local_points)
+        }
+
+# Example usage
+camera_matrix = np.array([
+    [525.0, 0.0, 319.5],
+    [0.0, 525.0, 239.5],
+    [0.0, 0.0, 1.0]
+])
+
+slam = VisualSLAM(camera_matrix)
+```
+
+### Advanced Visual SLAM Techniques
+
+```python
+class AdvancedVisualSLAM(VisualSLAM):
+    def __init__(self, camera_matrix: np.ndarray, initial_pose: np.ndarray = None):
+        super().__init__(camera_matrix, initial_pose)
+
+        # Dense reconstruction
+        self.dense_map = None
+        self.depth_estimator = None
+
+        # Loop closure detection
+        self.loop_detector = LoopClosureDetector()
+        self.localizer = MapBasedLocalizer()
+
+        # Multi-session mapping
+        self.session_maps = []
+        self.global_map = {}
+
+    def dense_reconstruction(self, frames: List[np.ndarray]) -> np.ndarray:
+        """
+        Perform dense reconstruction from multiple frames
+        """
+        # This would implement multi-view stereo reconstruction
+        # For now, return a placeholder
+        return np.zeros((frames[0].shape[0], frames[0].shape[1], 3))
+
+    def detect_loop_closure(self, current_frame: Dict) -> bool:
+        """
+        Detect if the robot has returned to a previously visited location
+        """
+        return self.loop_detector.detect(current_frame)
+
+    def optimize_pose_graph(self):
+        """
+        Optimize the pose graph to correct drift
+        """
+        # This would implement pose graph optimization
+        # For now, it's a placeholder
+        pass
+
+    def initialize_with_map(self, map_data: Dict):
+        """
+        Initialize SLAM with a pre-built map
+        """
+        self.global_map = map_data
+        self.localizer.set_map(map_data)
+
+class LoopClosureDetector:
+    def __init__(self):
+        # Bag-of-words approach for loop closure detection
+        self.vocabulary = None
+        self.database = []
+
+    def detect(self, frame: Dict) -> bool:
+        """
+        Detect if current frame matches a previous location
+        """
+        # Extract visual words from current frame
+        # Compare with database of previous frames
+        # Return True if loop closure detected
+        return False
+
+class MapBasedLocalizer:
+    def __init__(self):
+        self.reference_map = None
+
+    def set_map(self, map_data: Dict):
+        """
+        Set the reference map for localization
+        """
+        self.reference_map = map_data
+
+    def localize(self, current_frame: Dict) -> np.ndarray:
+        """
+        Localize the robot in the reference map
+        """
+        # Perform map-based localization
+        # Return 6-DOF pose in map coordinates
+        return np.eye(4)
+```
+
+## Navigation Planning for Humanoid Robots
+
+### Path Planning Algorithms
+
+```python
+import heapq
+from dataclasses import dataclass
+from typing import Optional
+
+@dataclass
+class Node:
+    """
+    Node for path planning algorithms
+    """
+    x: float
+    y: float
+    z: float
+    cost: float
+    parent: Optional['Node'] = None
+
+    def __lt__(self, other):
+        return self.cost < other.cost
+
+class HumanoidPathPlanner:
+    def __init__(self, map_resolution: float = 0.1):
+        """
+        Initialize path planner for humanoid robots
+
+        Args:
+            map_resolution: Resolution of the occupancy grid (meters per cell)
+        """
+        self.map_resolution = map_resolution
+        self.occupancy_grid = None
+        self.robot_radius = 0.3  # Humanoid robot radius in meters
+        self.step_height = 0.15  # Maximum step height humanoid can handle
+        self.max_slope = 0.3     # Maximum slope (30% grade)
+
+    def plan_path(self, start: np.ndarray, goal: np.ndarray,
+                  occupancy_grid: np.ndarray) -> List[np.ndarray]:
+        """
+        Plan a path from start to goal using A* algorithm
+
+        Args:
+            start: Start position [x, y, z]
+            goal: Goal position [x, y, z]
+            occupancy_grid: 3D occupancy grid
+
+        Returns:
+            List of waypoints forming the path
+        """
+        self.occupancy_grid = occupancy_grid
+
+        # Convert positions to grid coordinates
+        start_grid = self.world_to_grid(start)
+        goal_grid = self.world_to_grid(goal)
+
+        # Perform A* path planning
+        path_grid = self.a_star(start_grid, goal_grid)
+
+        # Convert back to world coordinates
+        path_world = [self.grid_to_world(pos) for pos in path_grid]
+
+        return path_world
+
+    def a_star(self, start: Tuple[int, int, int],
+               goal: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
+        """
+        A* path planning algorithm
+        """
+        # Initialize open and closed sets
+        open_set = []
+        closed_set = set()
+
+        # Create start node
+        start_node = Node(start[0], start[1], start[2], 0)
+        heapq.heappush(open_set, (0, start_node))
+
+        # Cost dictionaries
+        g_score = {start: 0}
+        f_score = {start: self.heuristic(start, goal)}
+
+        while open_set:
+            current_cost, current_node = heapq.heappop(open_set)
+            current_pos = (current_node.x, current_node.y, current_node.z)
+
+            if current_pos in closed_set:
+                continue
+
+            if current_pos == goal:
+                # Reconstruct path
+                path = []
+                node = current_node
+                while node:
+                    path.append((node.x, node.y, node.z))
+                    node = node.parent
+                return path[::-1]  # Reverse to get path from start to goal
+
+            closed_set.add(current_pos)
+
+            # Get neighbors
+            for neighbor_pos in self.get_neighbors(current_pos):
+                if neighbor_pos in closed_set:
+                    continue
+
+                if not self.is_valid_position(neighbor_pos):
+                    continue
+
+                # Calculate tentative g_score
+                tentative_g_score = g_score[current_pos] + self.distance(current_pos, neighbor_pos)
+
+                neighbor_node = Node(neighbor_pos[0], neighbor_pos[1], neighbor_pos[2], tentative_g_score)
+
+                if neighbor_pos in g_score and tentative_g_score >= g_score[neighbor_pos]:
+                    continue
+
+                neighbor_node.parent = current_node
+                g_score[neighbor_pos] = tentative_g_score
+                f_score[neighbor_pos] = tentative_g_score + self.heuristic(neighbor_pos, goal)
+
+                heapq.heappush(open_set, (f_score[neighbor_pos], neighbor_node))
+
+        return []  # No path found
+
+    def heuristic(self, pos1: Tuple[int, int, int], pos2: Tuple[int, int, int]) -> float:
+        """
+        Heuristic function (Euclidean distance)
+        """
+        dx = pos1[0] - pos2[0]
+        dy = pos1[1] - pos2[1]
+        dz = pos1[2] - pos2[2]
+        return np.sqrt(dx*dx + dy*dy + dz*dz)
+
+    def get_neighbors(self, pos: Tuple[int, int, int]) -> List[Tuple[int, int, int]]:
+        """
+        Get valid neighboring positions
+        """
+        neighbors = []
+        for dx in [-1, 0, 1]:
+            for dy in [-1, 0, 1]:
+                for dz in [-1, 0, 1]:
+                    if dx == 0 and dy == 0 and dz == 0:
+                        continue
+                    neighbor_pos = (pos[0] + dx, pos[1] + dy, pos[2] + dz)
+                    neighbors.append(neighbor_pos)
+        return neighbors
+
+    def is_valid_position(self, pos: Tuple[int, int, int]) -> bool:
+        """
+        Check if position is valid (not occupied and within bounds)
+        """
+        if self.occupancy_grid is None:
+            return False
+
+        x, y, z = pos
+
+        # Check bounds
+        if (x < 0 or x >= self.occupancy_grid.shape[0] or
+            y < 0 or y >= self.occupancy_grid.shape[1] or
+            z < 0 or z >= self.occupancy_grid.shape[2]):
+            return False
+
+        # Check if occupied
+        if self.occupancy_grid[x, y, z] > 0.5:  # Occupied threshold
+            return False
+
+        # Check for humanoid-specific constraints
+        # (e.g., step height, slope, etc.)
+        if not self.is_traversable_for_humanoid(pos):
+            return False
+
+        return True
+
+    def is_traversable_for_humanoid(self, pos: Tuple[int, int, int]) -> bool:
+        """
+        Check if position is traversable for humanoid robot
+        """
+        # Check step height constraints
+        x, y, z = pos
+
+        # Check if there's a significant height difference with neighbors
+        for dx, dy in [(-1,0), (1,0), (0,-1), (0,1)]:
+            nx, ny = x + dx, y + dy
+            if (0 <= nx < self.occupancy_grid.shape[0] and
+                0 <= ny < self.occupancy_grid.shape[1]):
+                # Height difference check
+                neighbor_height = self.get_height_at(nx, ny)
+                current_height = self.get_height_at(x, y)
+                height_diff = abs(neighbor_height - current_height)
+
+                if height_diff > self.step_height:
+                    return False
+
+        return True
+
+    def get_height_at(self, x: int, y: int) -> float:
+        """
+        Get height at position (x, y) by finding the highest non-occupied z
+        """
+        for z in range(self.occupancy_grid.shape[2] - 1, -1, -1):
+            if self.occupancy_grid[x, y, z] < 0.5:  # Not occupied
+                return z * self.map_resolution
+        return 0.0
+
+    def world_to_grid(self, pos: np.ndarray) -> Tuple[int, int, int]:
+        """
+        Convert world coordinates to grid coordinates
+        """
+        x_grid = int(pos[0] / self.map_resolution)
+        y_grid = int(pos[1] / self.map_resolution)
+        z_grid = int(pos[2] / self.map_resolution)
+        return (x_grid, y_grid, z_grid)
+
+    def grid_to_world(self, pos: Tuple[int, int, int]) -> np.ndarray:
+        """
+        Convert grid coordinates to world coordinates
+        """
+        x_world = pos[0] * self.map_resolution
+        y_world = pos[1] * self.map_resolution
+        z_world = pos[2] * self.map_resolution
+        return np.array([x_world, y_world, z_world])
+
+# Example usage
+planner = HumanoidPathPlanner(map_resolution=0.2)
+
+# Example occupancy grid (simplified 2D for demonstration)
+occupancy_grid = np.zeros((50, 50, 10))  # 50x50x10 grid
+# Add some obstacles
+occupancy_grid[20:25, 20:25, :] = 1.0  # Block in the middle
+
+start = np.array([5.0, 5.0, 0.5])
+goal = np.array([40.0, 40.0, 0.5])
+
+path = planner.plan_path(start, goal, occupancy_grid)
+print(f"Planned path with {len(path)} waypoints")
+```
+
+### Humanoid-Specific Navigation
+
+```python
+class HumanoidNavigationController:
+    def __init__(self, robot_model: str = "generic_humanoid"):
+        """
+        Navigation controller specifically designed for humanoid robots
+        """
+        self.robot_model = robot_model
+        self.planner = HumanoidPathPlanner()
+        self.local_planner = LocalNavigationPlanner()
+        self.footstep_planner = FootstepPlanner()
+        self.balance_controller = BalanceController()
+
+        # Navigation state
+        self.current_pose = np.eye(4)
+        self.goal_pose = None
+        self.current_path = []
+        self.path_index = 0
+
+        # Safety parameters
+        self.safety_margin = 0.5  # meters
+        self.max_speed = 0.5      # m/s
+        self.max_angular_velocity = 0.3  # rad/s
+
+    def navigate_to_pose(self, goal_pose: np.ndarray, occupancy_map: Dict):
+        """
+        Navigate the humanoid robot to a goal pose
+
+        Args:
+            goal_pose: 4x4 transformation matrix for goal pose
+            occupancy_map: Dictionary containing map information
+        """
+        # Update current pose (this would come from SLAM/localization)
+        self.current_pose = self.get_current_pose()
+
+        # Plan global path
+        self.current_path = self.plan_global_path(self.current_pose[:3, 3], goal_pose[:3, 3], occupancy_map)
+
+        if not self.current_path:
+            print("No valid path found to goal")
+            return False
+
+        # Execute navigation
+        return self.execute_navigation()
+
+    def plan_global_path(self, start_pos: np.ndarray, goal_pos: np.ndarray,
+                        occupancy_map: Dict) -> List[np.ndarray]:
+        """
+        Plan global path considering humanoid constraints
+        """
+        # Convert occupancy map to grid format expected by planner
+        grid_map = self.convert_map_to_grid(occupancy_map)
+
+        # Plan path
+        path = self.planner.plan_path(start_pos, goal_pos, grid_map)
+
+        # Smooth path for humanoid locomotion
+        smoothed_path = self.smooth_path_for_humanoid(path)
+
+        return smoothed_path
+
+    def convert_map_to_grid(self, occupancy_map: Dict) -> np.ndarray:
+        """
+        Convert occupancy map dictionary to 3D grid
+        """
+        # This would convert the map format to what the planner expects
+        # For now, return a dummy grid
+        resolution = occupancy_map.get('resolution', 0.1)
+        size = occupancy_map.get('size', (20, 20, 3))
+
+        grid = np.zeros(size)
+
+        # Add obstacles from map
+        obstacles = occupancy_map.get('obstacles', [])
+        for obs in obstacles:
+            # Convert obstacle coordinates to grid indices
+            x_idx = int(obs['center'][0] / resolution)
+            y_idx = int(obs['center'][1] / resolution)
+            z_idx = int(obs['center'][2] / resolution)
+
+            # Mark as occupied
+            if (0 <= x_idx < grid.shape[0] and
+                0 <= y_idx < grid.shape[1] and
+                0 <= z_idx < grid.shape[2]):
+                grid[x_idx, y_idx, z_idx] = 1.0
+
+        return grid
+
+    def smooth_path_for_humanoid(self, path: List[np.ndarray]) -> List[np.ndarray]:
+        """
+        Smooth path considering humanoid locomotion characteristics
+        """
+        if len(path) < 2:
+            return path
+
+        # Apply path smoothing (e.g., using cubic splines or other techniques)
+        smoothed_path = []
+
+        # For now, we'll just add intermediate waypoints for smoother motion
+        for i in range(len(path) - 1):
+            start = path[i]
+            end = path[i + 1]
+
+            # Add intermediate point if the step is too large
+            distance = np.linalg.norm(end - start)
+            if distance > 0.5:  # Add intermediate point if step > 0.5m
+                intermediate = start + 0.5 * (end - start)
+                smoothed_path.append(start)
+                smoothed_path.append(intermediate)
+            else:
+                smoothed_path.append(start)
+
+        if path:
+            smoothed_path.append(path[-1])
+
+        return smoothed_path
+
+    def execute_navigation(self) -> bool:
+        """
+        Execute the planned navigation path
+        """
+        if not self.current_path:
+            return False
+
+        # Navigate along the path
+        for waypoint in self.current_path:
+            if not self.navigate_to_waypoint(waypoint):
+                return False  # Navigation failed
+
+        return True
+
+    def navigate_to_waypoint(self, waypoint: np.ndarray) -> bool:
+        """
+        Navigate to a specific waypoint
+        """
+        # Calculate desired velocity toward waypoint
+        current_pos = self.current_pose[:3, 3]
+        direction = waypoint - current_pos
+        distance = np.linalg.norm(direction)
+
+        if distance < 0.1:  # Close enough to waypoint
+            return True
+
+        # Normalize direction
+        direction = direction / distance
+
+        # Calculate desired velocity (with maximum speed limit)
+        desired_velocity = min(self.max_speed, distance) * direction
+
+        # Plan footsteps to reach the waypoint
+        footsteps = self.footstep_planner.plan_footsteps(
+            self.current_pose,
+            waypoint,
+            desired_velocity
+        )
+
+        # Execute footsteps while maintaining balance
+        for footstep in footsteps:
+            if not self.execute_footstep(footstep):
+                return False
+
+        return True
+
+    def execute_footstep(self, footstep: Dict) -> bool:
+        """
+        Execute a single footstep while maintaining balance
+        """
+        # Move foot to target position
+        success = self.move_foot(footstep['position'], footstep['orientation'])
+
+        if success:
+            # Update balance to accommodate new foot position
+            self.balance_controller.update_support_polygon(
+                self.get_current_foot_positions()
+            )
+
+        return success
+
+    def move_foot(self, target_position: np.ndarray,
+                  target_orientation: np.ndarray) -> bool:
+        """
+        Move a foot to target position and orientation
+        """
+        # This would interface with the robot's joint controllers
+        # For now, return True (success)
+        return True
+
+    def get_current_foot_positions(self) -> List[np.ndarray]:
+        """
+        Get current positions of both feet
+        """
+        # This would query the robot's kinematics
+        # For now, return dummy positions
+        return [np.array([0.1, 0.1, 0.0]), np.array([-0.1, 0.1, 0.0])]
+
+    def get_current_pose(self) -> np.ndarray:
+        """
+        Get current pose of the robot (from localization system)
+        """
+        # This would come from the SLAM/localization system
+        # For now, return identity matrix
+        return np.eye(4)
+
+class LocalNavigationPlanner:
+    def __init__(self):
+        """
+        Local navigation planner for obstacle avoidance
+        """
+        self.local_map_radius = 3.0  # meters
+        self.obstacle_threshold = 0.7  # occupancy probability threshold
+
+    def plan_local_path(self, current_pose: np.ndarray, goal_pose: np.ndarray,
+                       local_map: np.ndarray) -> List[np.ndarray]:
+        """
+        Plan a local path to avoid immediate obstacles
+        """
+        # This would implement local path planning (e.g., DWA, RRT*, etc.)
+        # For now, return a simple path
+        current_pos = current_pose[:3, 3]
+        goal_pos = goal_pose[:3, 3]
+
+        # Simple vector following with obstacle avoidance
+        direction = goal_pos - current_pos
+        distance = np.linalg.norm(direction)
+
+        if distance < 0.1:  # Very close to goal
+            return [goal_pos]
+
+        # Normalize direction
+        direction = direction / distance
+
+        # Check for obstacles along the path
+        step_size = 0.2  # meters
+        num_steps = int(distance / step_size)
+
+        path = []
+        for i in range(num_steps + 1):
+            intermediate_pos = current_pos + i * step_size * direction
+
+            # Check if this position is blocked
+            if not self.is_position_blocked(intermediate_pos, local_map):
+                path.append(intermediate_pos)
+            else:
+                # Implement obstacle avoidance here
+                detour = self.find_detour_around_obstacle(intermediate_pos, direction, local_map)
+                if detour is not None:
+                    path.extend(detour)
+                else:
+                    # No clear path found
+                    return []
+
+        return path
+
+    def is_position_blocked(self, pos: np.ndarray, local_map: np.ndarray) -> bool:
+        """
+        Check if a position is blocked by obstacles
+        """
+        # Convert world position to map coordinates
+        # This is a simplified check
+        x, y, z = pos
+        # In a real implementation, this would check the local map
+        return False
+
+    def find_detour_around_obstacle(self, pos: np.ndarray, direction: np.ndarray,
+                                  local_map: np.ndarray) -> Optional[List[np.ndarray]]:
+        """
+        Find a detour path around an obstacle
+        """
+        # This would implement local obstacle avoidance
+        # For now, return None (no detour found)
+        return None
+
+class FootstepPlanner:
+    def __init__(self):
+        """
+        Plan safe and stable footsteps for humanoid locomotion
+        """
+        self.step_length = 0.3  # meters
+        self.step_width = 0.2   # meters (distance between feet)
+        self.max_step_height = 0.1  # meters
+
+    def plan_footsteps(self, current_pose: np.ndarray, goal_position: np.ndarray,
+                      desired_velocity: np.ndarray) -> List[Dict]:
+        """
+        Plan a sequence of footsteps to reach the goal
+        """
+        footsteps = []
+
+        current_pos = current_pose[:3, 3]
+        direction = goal_position - current_pos
+        distance = np.linalg.norm(direction)
+
+        if distance < 0.01:  # Already at goal
+            return footsteps
+
+        # Normalize direction
+        direction = direction / distance
+
+        # Calculate number of steps needed
+        num_steps = int(distance / self.step_length) + 1
+
+        # Plan footsteps
+        for i in range(num_steps):
+            # Calculate step position
+            step_progress = min(1.0, (i + 1) * self.step_length / distance)
+            step_pos = current_pos + step_progress * distance * direction
+
+            # Add some variation for natural walking
+            step_pos[1] += (i % 2) * self.step_width * (-1 if i % 4 < 2 else 1)  # Alternate feet
+
+            # Create footstep
+            footstep = {
+                'position': step_pos,
+                'orientation': current_pose[:3, :3],  # Same orientation as current pose
+                'foot': 'left' if i % 2 == 0 else 'right',  # Alternate feet
+                'swing_height': 0.05  # Height to lift foot during step
+            }
+
+            footsteps.append(footstep)
+
+        return footsteps
+
+class BalanceController:
+    def __init__(self):
+        """
+        Balance controller for humanoid robots
+        """
+        self.support_polygon = []
+        self.com_position = np.zeros(3)
+        self.com_velocity = np.zeros(3)
+        self.zmp_position = np.zeros(2)
+
+    def update_support_polygon(self, foot_positions: List[np.ndarray]):
+        """
+        Update the support polygon based on foot positions
+        """
+        self.support_polygon = foot_positions
+
+    def compute_balance_correction(self) -> np.ndarray:
+        """
+        Compute balance correction to maintain stability
+        """
+        # Calculate ZMP (Zero Moment Point) and compare with support polygon
+        current_zmp = self.get_current_zmp()
+
+        # Calculate correction needed to keep ZMP within support polygon
+        correction = self.calculate_zmp_correction(current_zmp, self.support_polygon)
+
+        return correction
+
+    def get_current_zmp(self) -> np.ndarray:
+        """
+        Get current ZMP (Zero Moment Point) position
+        """
+        # This would calculate ZMP from force sensors and IMU data
+        # For now, return a dummy value
+        return np.zeros(2)
+
+    def calculate_zmp_correction(self, current_zmp: np.ndarray,
+                               support_polygon: List[np.ndarray]) -> np.ndarray:
+        """
+        Calculate correction to keep ZMP within support polygon
+        """
+        # Find the closest point in the support polygon to the current ZMP
+        if not support_polygon:
+            return np.zeros(2)
+
+        # For a simple rectangular support polygon (like feet)
+        min_x = min(p[0] for p in support_polygon)
+        max_x = max(p[0] for p in support_polygon)
+        min_y = min(p[1] for p in support_polygon)
+        max_y = max(p[1] for p in support_polygon)
+
+        # Calculate correction to bring ZMP within bounds
+        correction = np.zeros(2)
+        correction[0] = max(min_x, min(max_x, current_zmp[0])) - current_zmp[0]
+        correction[1] = max(min_y, min(max_y, current_zmp[1])) - current_zmp[1]
+
+        return correction
+
+# Example usage
+navigator = HumanoidNavigationController()
+
+# Example goal pose (4x4 transformation matrix)
+goal_pose = np.eye(4)
+goal_pose[0, 3] = 5.0  # x position
+goal_pose[1, 3] = 3.0  # y position
+goal_pose[2, 3] = 0.0  # z position (height)
+
+# Example occupancy map
+occupancy_map = {
+    'resolution': 0.1,
+    'size': (50, 50, 10),
+    'obstacles': [
+        {'center': [3.0, 3.0, 0.5], 'size': [1.0, 1.0, 1.0]},
+        {'center': [7.0, 5.0, 0.5], 'size': [0.5, 0.5, 1.0]}
+    ]
+}
+
+# Navigate to goal
+success = navigator.navigate_to_pose(goal_pose, occupancy_map)
+print(f"Navigation {'succeeded' if success else 'failed'}")
+```
+
+## Integration with Isaac Sim and Nav2
+
+### Isaac Sim Navigation Integration
+
+```python
+import omni
+from omni.isaac.core import World
+from omni.isaac.core.utils.stage import add_reference_to_stage
+from omni.isaac.navigation import PathPlanner
+from omni.isaac.core.utils.prims import get_prim_at_path
+import carb
+
+class IsaacSimNavigation:
+    def __init__(self, world: World):
+        """
+        Navigation system integrated with Isaac Sim
+        """
+        self.world = world
+        self.path_planner = None
+        self.navigation_map = None
+
+        # Initialize Isaac Sim navigation components
+        self.setup_navigation_system()
+
+    def setup_navigation_system(self):
+        """
+        Setup navigation system in Isaac Sim
+        """
+        # Create navigation map from the stage
+        self.create_navigation_map()
+
+        # Initialize path planner
+        self.path_planner = PathPlanner(
+            name="humanoid_path_planner",
+            robot_prim_path="/World/HumanoidRobot",
+            map_prim_path="/World/NavigationMap"
+        )
+
+    def create_navigation_map(self):
+        """
+        Create navigation map from Isaac Sim stage
+        """
+        # In Isaac Sim, navigation maps are typically created from the scene geometry
+        # This involves:
+        # 1. Identifying walkable surfaces
+        # 2. Detecting obstacles
+        # 3. Creating a navmesh or grid map
+
+        # For this example, we'll create a simple grid-based representation
+        self.navigation_map = self.generate_grid_map()
+
+    def generate_grid_map(self):
+        """
+        Generate a grid-based navigation map from Isaac Sim scene
+        """
+        # This would analyze the scene geometry to create a navigation map
+        # For now, return a simple representation
+        return {
+            'grid': np.zeros((100, 100)),  # 100x100 grid
+            'resolution': 0.1,  # 10cm per cell
+            'origin': np.array([0.0, 0.0, 0.0])
+        }
+
+    def plan_path(self, start_pos: np.ndarray, goal_pos: np.ndarray) -> List[np.ndarray]:
+        """
+        Plan a path in the Isaac Sim environment
+
+        Args:
+            start_pos: Start position [x, y, z]
+            goal_pos: Goal position [x, y, z]
+
+        Returns:
+            List of waypoints forming the path
+        """
+        # Use Isaac Sim's path planning capabilities
+        if self.path_planner:
+            try:
+                path = self.path_planner.plan_path(start_pos, goal_pos)
+                return path
+            except Exception as e:
+                print(f"Path planning failed: {e}")
+                return []
+        else:
+            # Fallback to our own path planner
+            grid_map = self.navigation_map['grid']
+            # Convert world positions to grid coordinates
+            start_grid = self.world_to_grid(start_pos)
+            goal_grid = self.world_to_grid(goal_pos)
+
+            # Use our own path planner
+            planner = HumanoidPathPlanner(map_resolution=self.navigation_map['resolution'])
+            path = planner.plan_path(start_pos, goal_pos, grid_map)
+
+            return path
+
+    def world_to_grid(self, pos: np.ndarray) -> Tuple[int, int]:
+        """
+        Convert world coordinates to grid coordinates
+        """
+        origin = self.navigation_map['origin']
+        resolution = self.navigation_map['resolution']
+
+        grid_x = int((pos[0] - origin[0]) / resolution)
+        grid_y = int((pos[1] - origin[1]) / resolution)
+
+        return (grid_x, grid_y)
+
+    def execute_navigation(self, robot, path: List[np.ndarray]):
+        """
+        Execute navigation along the planned path
+        """
+        for waypoint in path:
+            # Move robot to waypoint
+            success = self.move_to_waypoint(robot, waypoint)
+            if not success:
+                print(f"Failed to reach waypoint: {waypoint}")
+                return False
+
+        return True
+
+    def move_to_waypoint(self, robot, waypoint: np.ndarray) -> bool:
+        """
+        Move robot to a specific waypoint
+        """
+        # In Isaac Sim, this would involve:
+        # 1. Generating footstep plan
+        # 2. Executing walking controller
+        # 3. Maintaining balance
+
+        # For simulation, we'll just move the robot's base
+        try:
+            robot.set_world_poses(positions=[waypoint], orientations=[robot.get_world_poses()[1]])
+            return True
+        except Exception as e:
+            print(f"Failed to move to waypoint: {e}")
+            return False
+
+    def update_navigation_map(self):
+        """
+        Update navigation map based on sensor data
+        """
+        # This would integrate sensor data to update the navigation map
+        # For example, using depth sensors to detect new obstacles
+        pass
+
+class IsaacSimHumanoidNavigator:
+    def __init__(self, world: World, robot):
+        """
+        High-level navigation controller for humanoid in Isaac Sim
+        """
+        self.world = world
+        self.robot = robot
+        self.isaac_nav = IsaacSimNavigation(world)
+        self.humanoid_controller = HumanoidNavigationController()
+        self.slam_system = None
+
+    def setup_slam(self, camera_matrix: np.ndarray):
+        """
+        Setup SLAM system for navigation
+        """
+        self.slam_system = VisualSLAM(camera_matrix)
+
+    def navigate_to_goal(self, goal_position: np.ndarray):
+        """
+        Navigate humanoid robot to goal position using SLAM and navigation
+        """
+        # Plan path using current map
+        current_pose = self.robot.get_world_poses()[0][0]  # Get current position
+        path = self.isaac_nav.plan_path(current_pose, goal_position)
+
+        if not path:
+            print("No path found to goal")
+            return False
+
+        # Execute navigation
+        success = self.isaac_nav.execute_navigation(self.robot, path)
+
+        return success
+
+    def run_navigation_loop(self, goal_position: np.ndarray,
+                           max_time: float = 60.0):
+        """
+        Run continuous navigation loop with SLAM updates
+        """
+        start_time = self.world.current_time
+
+        while self.world.current_time - start_time < max_time:
+            # Update SLAM with current camera data
+            if self.slam_system:
+                # Get current camera image (this would be from robot's camera)
+                camera_image = self.get_camera_image()
+                timestamp = self.world.current_time
+
+                slam_results = self.slam_system.process_frame(camera_image, timestamp)
+
+                # Update navigation map with SLAM results
+                self.update_navigation_with_slam(slam_results)
+
+            # Replan path if needed (e.g., due to new obstacles)
+            if self.should_replan():
+                current_pos = self.robot.get_world_poses()[0][0]
+                new_path = self.isaac_nav.plan_path(current_pos, goal_position)
+
+                if new_path:
+                    self.isaac_nav.execute_navigation(self.robot, new_path)
+
+            # Step the simulation
+            self.world.step(render=True)
+
+            # Check if goal reached
+            current_pos = self.robot.get_world_poses()[0][0]
+            if np.linalg.norm(current_pos - goal_position) < 0.5:  # Within 0.5m of goal
+                print("Goal reached!")
+                return True
+
+        print("Navigation timeout")
+        return False
+
+    def get_camera_image(self):
+        """
+        Get image from robot's camera
+        """
+        # This would interface with Isaac Sim's camera sensors
+        # For now, return a dummy image
+        return np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+
+    def update_navigation_with_slam(self, slam_results: Dict):
+        """
+        Update navigation system with SLAM results
+        """
+        # Update the navigation map with new information from SLAM
+        self.isaac_nav.update_navigation_map()
+
+    def should_replan(self) -> bool:
+        """
+        Determine if path replanning is needed
+        """
+        # Replan if significant new obstacles detected
+        # or if current path is no longer valid
+        return False
+
+# Example usage (in Isaac Sim environment)
+# world = World(stage_units_in_meters=1.0)
+# navigator = IsaacSimHumanoidNavigator(world, robot)
+# goal = np.array([5.0, 5.0, 0.0])
+# success = navigator.run_navigation_loop(goal)
+```
+
+## Navigation Performance and Validation
+
+### Navigation Performance Metrics
+
+```python
+import time
+import statistics
+from typing import List
+
+class NavigationMetrics:
+    def __init__(self):
+        """
+        Class to track and evaluate navigation performance
+        """
+        self.path_efficiency = []  # Ratio of direct distance to actual path length
+        self.navigation_success = []  # Success/failure of navigation attempts
+        self.time_to_goal = []  # Time taken to reach goal
+        self.path_deviation = []  # Deviation from optimal path
+        self.collision_count = 0  # Number of collisions during navigation
+        self.trajectory_smoothness = []  # Measure of path smoothness
+
+    def record_path_efficiency(self, optimal_distance: float, actual_distance: float):
+        """
+        Record path efficiency metric
+        """
+        if optimal_distance > 0:
+            efficiency = optimal_distance / actual_distance if actual_distance > 0 else 0
+            self.path_efficiency.append(min(1.0, efficiency))  # Cap at 1.0 (perfect efficiency)
+
+    def record_navigation_success(self, success: bool):
+        """
+        Record navigation success/failure
+        """
+        self.navigation_success.append(1 if success else 0)
+
+    def record_time_to_goal(self, time_taken: float):
+        """
+        Record time taken to reach goal
+        """
+        self.time_to_goal.append(time_taken)
+
+    def record_path_deviation(self, deviation: float):
+        """
+        Record deviation from optimal path
+        """
+        self.path_deviation.append(deviation)
+
+    def record_collision(self):
+        """
+        Record a collision event
+        """
+        self.collision_count += 1
+
+    def record_trajectory_smoothness(self, smoothness_score: float):
+        """
+        Record trajectory smoothness
+        """
+        self.trajectory_smoothness.append(smoothness_score)
+
+    def get_average_metrics(self) -> Dict:
+        """
+        Calculate and return average metrics
+        """
+        metrics = {}
+
+        if self.path_efficiency:
+            metrics['average_path_efficiency'] = statistics.mean(self.path_efficiency)
+
+        if self.navigation_success:
+            metrics['success_rate'] = sum(self.navigation_success) / len(self.navigation_success)
+
+        if self.time_to_goal:
+            metrics['average_time_to_goal'] = statistics.mean(self.time_to_goal)
+            metrics['median_time_to_goal'] = statistics.median(self.time_to_goal)
+
+        if self.path_deviation:
+            metrics['average_path_deviation'] = statistics.mean(self.path_deviation)
+
+        if self.trajectory_smoothness:
+            metrics['average_trajectory_smoothness'] = statistics.mean(self.trajectory_smoothness)
+
+        metrics['collision_rate'] = self.collision_count
+
+        return metrics
+
+    def generate_performance_report(self) -> str:
+        """
+        Generate a comprehensive performance report
+        """
+        avg_metrics = self.get_average_metrics()
+
+        report = []
+        report.append("=== Navigation Performance Report ===")
+        report.append(f"Total navigation attempts: {len(self.navigation_success)}")
+        report.append(f"Success rate: {avg_metrics.get('success_rate', 0):.2%}")
+        report.append(f"Average path efficiency: {avg_metrics.get('average_path_efficiency', 0):.3f}")
+        report.append(f"Average time to goal: {avg_metrics.get('average_time_to_goal', 0):.2f}s")
+        report.append(f"Average path deviation: {avg_metrics.get('average_path_deviation', 0):.3f}m")
+        report.append(f"Total collisions: {self.collision_count}")
+        report.append(f"Average trajectory smoothness: {avg_metrics.get('average_trajectory_smoothness', 0):.3f}")
+
+        return "\n".join(report)
+
+class NavigationValidator:
+    def __init__(self):
+        """
+        Validate navigation system performance
+        """
+        self.metrics = NavigationMetrics()
+        self.ground_truth_paths = {}  # Pre-computed optimal paths
+
+    def validate_navigation_performance(self, test_scenarios: List[Dict]) -> Dict:
+        """
+        Validate navigation performance across multiple test scenarios
+
+        Args:
+            test_scenarios: List of test scenarios with start/goal positions and maps
+
+        Returns:
+            Dictionary of performance metrics
+        """
+        for scenario in test_scenarios:
+            start_pos = scenario['start']
+            goal_pos = scenario['goal']
+            map_data = scenario['map']
+
+            # Run navigation
+            start_time = time.time()
+            success = self.run_navigation_test(start_pos, goal_pos, map_data)
+            end_time = time.time()
+
+            # Calculate metrics
+            actual_path = scenario.get('actual_path', [])
+            optimal_path = self.get_optimal_path(start_pos, goal_pos, map_data)
+
+            if optimal_path and actual_path:
+                optimal_distance = self.calculate_path_distance(optimal_path)
+                actual_distance = self.calculate_path_distance(actual_path)
+
+                self.metrics.record_path_efficiency(optimal_distance, actual_distance)
+                self.metrics.record_path_deviation(
+                    self.calculate_path_deviation(actual_path, optimal_path)
+                )
+
+            self.metrics.record_navigation_success(success)
+            self.metrics.record_time_to_goal(end_time - start_time)
+
+        return self.metrics.get_average_metrics()
+
+    def run_navigation_test(self, start_pos: np.ndarray, goal_pos: np.ndarray,
+                           map_data: Dict) -> bool:
+        """
+        Run a single navigation test
+        """
+        # This would run the actual navigation system
+        # For now, return a simulated result
+        return True  # Simulate success
+
+    def get_optimal_path(self, start: np.ndarray, goal: np.ndarray,
+                        map_data: Dict) -> List[np.ndarray]:
+        """
+        Get the optimal (ground truth) path for comparison
+        """
+        # In a real system, this would come from a perfect planner or pre-computed paths
+        # For simulation, return a straight line if no obstacles
+        return [start, goal]
+
+    def calculate_path_distance(self, path: List[np.ndarray]) -> float:
+        """
+        Calculate total distance of a path
+        """
+        if len(path) < 2:
+            return 0.0
+
+        total_distance = 0.0
+        for i in range(1, len(path)):
+            total_distance += np.linalg.norm(path[i] - path[i-1])
+
+        return total_distance
+
+    def calculate_path_deviation(self, actual_path: List[np.ndarray],
+                                optimal_path: List[np.ndarray]) -> float:
+        """
+        Calculate deviation of actual path from optimal path
+        """
+        # Calculate average distance from actual path points to optimal path
+        if not actual_path or not optimal_path:
+            return float('inf')
+
+        total_deviation = 0.0
+        for actual_point in actual_path:
+            # Find closest point on optimal path
+            min_distance = float('inf')
+            for opt_point in optimal_path:
+                distance = np.linalg.norm(actual_point - opt_point)
+                if distance < min_distance:
+                    min_distance = distance
+            total_deviation += min_distance
+
+        return total_deviation / len(actual_path)
+
+    def validate_real_world_performance(self, real_robot, test_positions: List[np.ndarray]):
+        """
+        Validate navigation performance on real robot
+        """
+        # This would involve running navigation on a real humanoid robot
+        # and comparing to expected behavior
+        pass
+
+# Example usage
+validator = NavigationValidator()
+
+# Example test scenarios
+test_scenarios = [
+    {
+        'start': np.array([0.0, 0.0, 0.0]),
+        'goal': np.array([5.0, 5.0, 0.0]),
+        'map': np.zeros((50, 50, 10)),
+        'actual_path': [np.array([0.0, 0.0, 0.0]), np.array([2.5, 2.5, 0.0]), np.array([5.0, 5.0, 0.0])]
+    },
+    {
+        'start': np.array([1.0, 1.0, 0.0]),
+        'goal': np.array([8.0, 8.0, 0.0]),
+        'map': np.zeros((50, 50, 10)),
+        'actual_path': [np.array([1.0, 1.0, 0.0]), np.array([4.5, 4.5, 0.0]), np.array([8.0, 8.0, 0.0])]
+    }
+]
+
+# Validate performance
+performance_metrics = validator.validate_navigation_performance(test_scenarios)
+print(validator.metrics.generate_performance_report())
+```
+
+## Best Practices and Guidelines
+
+### Navigation Best Practices
+
+1. **Multi-Sensor Fusion**: Combine visual, LiDAR, and IMU data for robust localization
+2. **Hierarchical Planning**: Use global path planning with local obstacle avoidance
+3. **Safety First**: Always maintain safety margins and emergency stop capabilities
+4. **Real-time Performance**: Ensure navigation algorithms run efficiently in real-time
+5. **Robust Recovery**: Implement strategies for handling navigation failures
+
+### Troubleshooting Common Issues
+
+```python
+class NavigationTroubleshooter:
+    def __init__(self):
+        self.common_issues = {
+            'localization_failure': self.troubleshoot_localization_failure,
+            'path_planning_failure': self.troubleshoot_path_planning_failure,
+            'obstacle_detection': self.troubleshoot_obstacle_detection,
+            'balance_loss': self.troubleshoot_balance_loss,
+            'sensor_failure': self.troubleshoot_sensor_failure
+        }
+
+    def troubleshoot_localization_failure(self):
+        """
+        Troubleshoot SLAM/localization failures
+        """
+        fixes = [
+            "Check camera calibration parameters",
+            "Verify sufficient visual features in environment",
+            "Ensure adequate lighting conditions",
+            "Validate IMU calibration and mounting",
+            "Check for sensor synchronization issues"
+        ]
+        return fixes
+
+    def troubleshoot_path_planning_failure(self):
+        """
+        Troubleshoot path planning failures
+        """
+        fixes = [
+            "Verify map is properly constructed and up-to-date",
+            "Check for unreachable goal positions",
+            "Validate robot dimensions in configuration",
+            "Ensure adequate clearance around obstacles",
+            "Verify map coordinate system alignment"
+        ]
+        return fixes
+
+    def troubleshoot_obstacle_detection(self):
+        """
+        Troubleshoot obstacle detection issues
+        """
+        fixes = [
+            "Check sensor range and field of view",
+            "Verify sensor mounting position and orientation",
+            "Validate sensor calibration",
+            "Check for sensor occlusions",
+            "Adjust detection thresholds appropriately"
+        ]
+        return fixes
+
+    def troubleshoot_balance_loss(self):
+        """
+        Troubleshoot balance control issues during navigation
+        """
+        fixes = [
+            "Verify center of mass estimation",
+            "Check ZMP (Zero Moment Point) control parameters",
+            "Validate footstep planning algorithm",
+            "Adjust balance control gains",
+            "Check for sensor noise affecting balance"
+        ]
+        return fixes
+
+    def troubleshoot_sensor_failure(self):
+        """
+        Troubleshoot sensor-related issues
+        """
+        fixes = [
+            "Verify sensor power and communication connections",
+            "Check sensor drivers and firmware",
+            "Validate sensor configuration parameters",
+            "Test sensor independently of navigation system",
+            "Check for electromagnetic interference"
+        ]
+        return fixes
+
+    def run_diagnostic(self, issue_type: str) -> List[str]:
+        """
+        Run diagnostic for specific issue type
+        """
+        if issue_type in self.common_issues:
+            return self.common_issues[issue_type]()
+        else:
+            return ["Issue type not recognized"]
+
+# Example usage
+troubleshooter = NavigationTroubleshooter()
+localization_fixes = troubleshooter.run_diagnostic('localization_failure')
+print(f"Localization fixes: {localization_fixes}")
+```
+
+## Summary
+
+Visual SLAM and navigation form the core of autonomous humanoid robot capabilities, enabling them to perceive, map, and navigate in unknown environments. This chapter covered the fundamental algorithms for visual SLAM, path planning techniques specifically adapted for humanoid robots, and integration with simulation environments like Isaac Sim. The combination of robust perception, intelligent path planning, and balance-aware navigation enables humanoid robots to operate safely and effectively in complex real-world environments. Proper validation and performance evaluation ensure that navigation systems meet the safety and reliability requirements for humanoid robotics applications.
+
+## Exercises
+
+1. Implement a visual SLAM system for a humanoid robot using ORB features
+2. Design a path planning algorithm that considers humanoid-specific locomotion constraints
+3. Create a navigation system that integrates visual SLAM with obstacle avoidance
+4. Validate navigation performance in simulated and real environments
+5. Develop a recovery behavior for navigation failures in humanoid robots

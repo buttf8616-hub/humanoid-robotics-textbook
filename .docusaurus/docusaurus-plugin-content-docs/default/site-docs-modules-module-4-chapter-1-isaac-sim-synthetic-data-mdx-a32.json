@@ -1,0 +1,38 @@
+{
+  "id": "modules/module-4/chapter-1-isaac-sim-synthetic-data",
+  "title": "Chapter 1: Isaac Sim and Synthetic Data",
+  "description": "NVIDIA Isaac simulation and data generation for humanoid robotics",
+  "source": "@site/docs/modules/module-4/chapter-1-isaac-sim-synthetic-data.mdx",
+  "sourceDirName": "modules/module-4",
+  "slug": "/modules/module-4/chapter-1-isaac-sim-synthetic-data",
+  "permalink": "/modules/module-4/chapter-1-isaac-sim-synthetic-data",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-4/chapter-1-isaac-sim-synthetic-data.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "title": "Chapter 1: Isaac Sim and Synthetic Data",
+    "description": "NVIDIA Isaac simulation and data generation for humanoid robotics",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Isaac Sim",
+      "Synthetic Data",
+      "Simulation",
+      "Computer Vision",
+      "Robotics",
+      "AI Training"
+    ],
+    "sidebar_position": 1
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 3: Sensor Simulation Integration",
+    "permalink": "/modules/module-3/chapter-3-sensor-simulation-integration"
+  },
+  "next": {
+    "title": "Chapter 2: Visual SLAM and Navigation",
+    "permalink": "/modules/module-4/chapter-2-visual-slam-navigation"
+  }
+}

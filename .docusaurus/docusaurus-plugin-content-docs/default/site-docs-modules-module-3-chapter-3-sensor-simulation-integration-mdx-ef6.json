@@ -1,0 +1,38 @@
+{
+  "id": "modules/module-3/chapter-3-sensor-simulation-integration",
+  "title": "Chapter 3: Sensor Simulation Integration",
+  "description": "LiDAR, cameras, IMUs, and multi-modal sensor fusion for humanoid robotics",
+  "source": "@site/docs/modules/module-3/chapter-3-sensor-simulation-integration.mdx",
+  "sourceDirName": "modules/module-3",
+  "slug": "/modules/module-3/chapter-3-sensor-simulation-integration",
+  "permalink": "/modules/module-3/chapter-3-sensor-simulation-integration",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-3/chapter-3-sensor-simulation-integration.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "title": "Chapter 3: Sensor Simulation Integration",
+    "description": "LiDAR, cameras, IMUs, and multi-modal sensor fusion for humanoid robotics",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Sensor Simulation",
+      "LiDAR",
+      "Camera",
+      "IMU",
+      "Sensor Fusion",
+      "Humanoid Robotics"
+    ],
+    "sidebar_position": 3
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 2: Unity Robotics Integration",
+    "permalink": "/modules/module-3/chapter-2-unity-robotics-integration"
+  },
+  "next": {
+    "title": "Chapter 1: Isaac Sim and Synthetic Data",
+    "permalink": "/modules/module-4/chapter-1-isaac-sim-synthetic-data"
+  }
+}

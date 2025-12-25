@@ -1,0 +1,34 @@
+{
+  "id": "modules/module-5/chapter-3-human-robot-interaction-systems",
+  "title": "Chapter 3: Human-Robot Interaction Systems",
+  "description": "Natural interaction paradigms and communication protocols for humanoid robots",
+  "source": "@site/docs/modules/module-5/chapter-3-human-robot-interaction-systems.mdx",
+  "sourceDirName": "modules/module-5",
+  "slug": "/modules/module-5/chapter-3-human-robot-interaction-systems",
+  "permalink": "/modules/module-5/chapter-3-human-robot-interaction-systems",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-5/chapter-3-human-robot-interaction-systems.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "title": "Chapter 3: Human-Robot Interaction Systems",
+    "description": "Natural interaction paradigms and communication protocols for humanoid robots",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Human-Robot Interaction",
+      "HRI",
+      "Communication Protocols",
+      "Natural Interaction",
+      "Social Robotics",
+      "Voice Commands"
+    ],
+    "sidebar_position": 3
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 2: Multimodal Learning for Robotics",
+    "permalink": "/modules/module-5/chapter-2-multimodal-learning-for-robotics"
+  }
+}

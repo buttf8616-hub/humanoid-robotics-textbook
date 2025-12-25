@@ -1,0 +1,249 @@
+{
+  "/blog-b2f": {
+    "__comp": "a6aa9e1f",
+    "__context": {
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "items": [
+      {
+        "content": "7661071f"
+      },
+      {
+        "content": "f4f34a3a"
+      },
+      {
+        "content": "8717b14a"
+      },
+      {
+        "content": "925b3f96"
+      }
+    ],
+    "__props": "c15d9823"
+  },
+  "/blog/archive-182": {
+    "__comp": "9e4087bc",
+    "__context": {
+      "plugin": "36994c47"
+    },
+    "__props": "f81c1134"
+  },
+  "/blog/authors-0b7": {
+    "__comp": "621db11d",
+    "__context": {
+      "data": {
+        "blogMetadata": "acecf23e"
+      },
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "__props": "ef8b811a"
+  },
+  "/blog/first-blog-post-89a": {
+    "__comp": "ccc49370",
+    "__context": {
+      "data": {
+        "blogMetadata": "acecf23e"
+      },
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "content": "e273c56f"
+  },
+  "/blog/long-blog-post-9ad": {
+    "__comp": "ccc49370",
+    "__context": {
+      "data": {
+        "blogMetadata": "acecf23e"
+      },
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "content": "73664a40"
+  },
+  "/blog/mdx-blog-post-e9f": {
+    "__comp": "ccc49370",
+    "__context": {
+      "data": {
+        "blogMetadata": "acecf23e"
+      },
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "content": "59362658"
+  },
+  "/blog/tags-287": {
+    "__comp": "01a85c17",
+    "__context": {
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "__props": "3a2db09e"
+  },
+  "/blog/tags/docusaurus-704": {
+    "__comp": "6875c492",
+    "__context": {
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "items": [
+      {
+        "content": "7661071f"
+      },
+      {
+        "content": "f4f34a3a"
+      },
+      {
+        "content": "8717b14a"
+      },
+      {
+        "content": "925b3f96"
+      }
+    ],
+    "__props": "3217192f"
+  },
+  "/blog/tags/facebook-858": {
+    "__comp": "6875c492",
+    "__context": {
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "items": [
+      {
+        "content": "7661071f"
+      }
+    ],
+    "__props": "e5aefb32"
+  },
+  "/blog/tags/hello-299": {
+    "__comp": "6875c492",
+    "__context": {
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "items": [
+      {
+        "content": "7661071f"
+      },
+      {
+        "content": "8717b14a"
+      }
+    ],
+    "__props": "f82cd581"
+  },
+  "/blog/tags/hola-00d": {
+    "__comp": "6875c492",
+    "__context": {
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "items": [
+      {
+        "content": "925b3f96"
+      }
+    ],
+    "__props": "5e90a9b3"
+  },
+  "/blog/welcome-d2b": {
+    "__comp": "ccc49370",
+    "__context": {
+      "data": {
+        "blogMetadata": "acecf23e"
+      },
+      "plugin": "36994c47"
+    },
+    "sidebar": "814f3328",
+    "content": "d9f32620"
+  },
+  "/markdown-page-3d7": {
+    "__comp": "1f391b9e",
+    "__context": {
+      "plugin": "a7456010"
+    },
+    "content": "393be207"
+  },
+  "/-2e1": {
+    "__comp": "c4f5d8e4",
+    "__context": {
+      "plugin": "a7456010"
+    },
+    "config": "5e9f5e1a"
+  },
+  "/-99b": {
+    "__comp": "5e95c892",
+    "__context": {
+      "plugin": "aba21aa0"
+    }
+  },
+  "/-9e3": {
+    "__comp": "a7bd4aaa",
+    "__props": "22dd74f7"
+  },
+  "/-d42": {
+    "__comp": "a94703ab"
+  },
+  "/intro-32d": {
+    "__comp": "17896441",
+    "content": "0e384e19"
+  },
+  "/modules/module-1/chapter-1-introduction-to-physical-ai-984": {
+    "__comp": "17896441",
+    "content": "09b91b1b"
+  },
+  "/modules/module-1/chapter-2-embodied-intelligence-principles-1ab": {
+    "__comp": "17896441",
+    "content": "aebb8a59"
+  },
+  "/modules/module-1/chapter-3-digital-physical-bridge-115": {
+    "__comp": "17896441",
+    "content": "85611995"
+  },
+  "/modules/module-2/chapter-1-ros2-architecture-fundamentals-7c0": {
+    "__comp": "17896441",
+    "content": "4c0460ce"
+  },
+  "/modules/module-2/chapter-2-communication-patterns-cb5": {
+    "__comp": "17896441",
+    "content": "1981c751"
+  },
+  "/modules/module-2/chapter-3-robot-modeling-urdf-76a": {
+    "__comp": "17896441",
+    "content": "3a809ffd"
+  },
+  "/modules/module-3/chapter-1-gazebo-simulation-environments-27e": {
+    "__comp": "17896441",
+    "content": "84fb5234"
+  },
+  "/modules/module-3/chapter-2-unity-robotics-integration-8ee": {
+    "__comp": "17896441",
+    "content": "41115166"
+  },
+  "/modules/module-3/chapter-3-sensor-simulation-integration-b7c": {
+    "__comp": "17896441",
+    "content": "ef680391"
+  },
+  "/modules/module-4/chapter-1-isaac-sim-synthetic-data-888": {
+    "__comp": "17896441",
+    "content": "a32793d2"
+  },
+  "/modules/module-4/chapter-2-visual-slam-navigation-c86": {
+    "__comp": "17896441",
+    "content": "d56149a3"
+  },
+  "/modules/module-4/chapter-3-ai-perception-decision-making-bf4": {
+    "__comp": "17896441",
+    "content": "f438a0e9"
+  },
+  "/modules/module-5/chapter-1-vision-language-action-fundamentals-cbc": {
+    "__comp": "17896441",
+    "content": "4814480d"
+  },
+  "/modules/module-5/chapter-2-multimodal-learning-for-robotics-014": {
+    "__comp": "17896441",
+    "content": "337f9136"
+  },
+  "/modules/module-5/chapter-3-human-robot-interaction-systems-556": {
+    "__comp": "17896441",
+    "content": "c3ba14ea"
+  }
+}

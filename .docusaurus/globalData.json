@@ -1,0 +1,108 @@
+{
+  "docusaurus-plugin-content-docs": {
+    "default": {
+      "path": "/",
+      "versions": [
+        {
+          "name": "current",
+          "label": "Next",
+          "isLast": true,
+          "path": "/",
+          "mainDocId": "intro",
+          "docs": [
+            {
+              "id": "intro",
+              "path": "/intro",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-1/chapter-1-introduction-to-physical-ai",
+              "path": "/modules/module-1/chapter-1-introduction-to-physical-ai",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-1/chapter-2-embodied-intelligence-principles",
+              "path": "/modules/module-1/chapter-2-embodied-intelligence-principles",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-1/chapter-3-digital-physical-bridge",
+              "path": "/modules/module-1/chapter-3-digital-physical-bridge",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-2/chapter-1-ros2-architecture-fundamentals",
+              "path": "/modules/module-2/chapter-1-ros2-architecture-fundamentals",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-2/chapter-2-communication-patterns",
+              "path": "/modules/module-2/chapter-2-communication-patterns",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-2/chapter-3-robot-modeling-urdf",
+              "path": "/modules/module-2/chapter-3-robot-modeling-urdf",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-3/chapter-1-gazebo-simulation-environments",
+              "path": "/modules/module-3/chapter-1-gazebo-simulation-environments",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-3/chapter-2-unity-robotics-integration",
+              "path": "/modules/module-3/chapter-2-unity-robotics-integration",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-3/chapter-3-sensor-simulation-integration",
+              "path": "/modules/module-3/chapter-3-sensor-simulation-integration",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-4/chapter-1-isaac-sim-synthetic-data",
+              "path": "/modules/module-4/chapter-1-isaac-sim-synthetic-data",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-4/chapter-2-visual-slam-navigation",
+              "path": "/modules/module-4/chapter-2-visual-slam-navigation",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-4/chapter-3-ai-perception-decision-making",
+              "path": "/modules/module-4/chapter-3-ai-perception-decision-making",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-5/chapter-1-vision-language-action-fundamentals",
+              "path": "/modules/module-5/chapter-1-vision-language-action-fundamentals",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-5/chapter-2-multimodal-learning-for-robotics",
+              "path": "/modules/module-5/chapter-2-multimodal-learning-for-robotics",
+              "sidebar": "docs"
+            },
+            {
+              "id": "modules/module-5/chapter-3-human-robot-interaction-systems",
+              "path": "/modules/module-5/chapter-3-human-robot-interaction-systems",
+              "sidebar": "docs"
+            }
+          ],
+          "draftIds": [],
+          "sidebars": {
+            "docs": {
+              "link": {
+                "path": "/intro",
+                "label": "intro"
+              }
+            }
+          }
+        }
+      ],
+      "breadcrumbs": true
+    }
+  }
+}

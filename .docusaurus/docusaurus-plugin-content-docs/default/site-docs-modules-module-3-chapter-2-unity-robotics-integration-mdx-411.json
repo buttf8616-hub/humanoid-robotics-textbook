@@ -1,0 +1,37 @@
+{
+  "id": "modules/module-3/chapter-2-unity-robotics-integration",
+  "title": "Chapter 2: Unity Robotics Integration",
+  "description": "High-fidelity visual environments and VR/AR support for humanoid robotics",
+  "source": "@site/docs/modules/module-3/chapter-2-unity-robotics-integration.mdx",
+  "sourceDirName": "modules/module-3",
+  "slug": "/modules/module-3/chapter-2-unity-robotics-integration",
+  "permalink": "/modules/module-3/chapter-2-unity-robotics-integration",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-3/chapter-2-unity-robotics-integration.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "title": "Chapter 2: Unity Robotics Integration",
+    "description": "High-fidelity visual environments and VR/AR support for humanoid robotics",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Unity",
+      "Robotics Simulation",
+      "VR/AR",
+      "Humanoid Robotics",
+      "3D Visualization"
+    ],
+    "sidebar_position": 2
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 1: Gazebo Simulation Environments",
+    "permalink": "/modules/module-3/chapter-1-gazebo-simulation-environments"
+  },
+  "next": {
+    "title": "Chapter 3: Sensor Simulation Integration",
+    "permalink": "/modules/module-3/chapter-3-sensor-simulation-integration"
+  }
+}

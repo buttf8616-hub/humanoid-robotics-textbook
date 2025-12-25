@@ -1,0 +1,2347 @@
+---
+title: "Chapter 3: Human-Robot Interaction Systems"
+description: "Natural interaction paradigms and communication protocols for humanoid robots"
+hide_table_of_contents: false
+keywords: ["Human-Robot Interaction", "HRI", "Communication Protocols", "Natural Interaction", "Social Robotics", "Voice Commands"]
+sidebar_position: 3
+---
+
+# Chapter 3: Human-Robot Interaction Systems
+
+## Learning Objectives
+- Understand principles of human-robot interaction for humanoid robots
+- Design natural communication interfaces for robot control
+- Implement voice and gesture recognition systems
+- Create socially-aware robot behaviors
+- Develop intuitive interaction paradigms for complex tasks
+
+## Introduction to Human-Robot Interaction
+
+Human-Robot Interaction (HRI) is a critical aspect of humanoid robotics, enabling natural and intuitive communication between humans and robots. Unlike industrial robots that operate in controlled environments, humanoid robots must interact seamlessly with humans in shared spaces, requiring sophisticated understanding of social cues, natural language, and contextual awareness.
+
+### HRI Fundamentals for Humanoid Robots
+
+Humanoid robots present unique challenges and opportunities for HRI:
+
+1. **Anthropomorphic Design**: Human-like appearance creates expectations for human-like interaction
+2. **Embodied Interaction**: Physical presence enables rich multimodal communication
+3. **Social Cognition**: Ability to understand and respond to social norms and expectations
+4. **Adaptive Behavior**: Need to adapt interaction style to different users and contexts
+5. **Safety-Critical Operations**: All interactions must prioritize human safety
+
+```python
+import numpy as np
+import torch
+import torch.nn as nn
+import speech_recognition as sr
+import pyttsx3
+from transformers import AutoTokenizer, AutoModelForSequenceClassification, pipeline
+from typing import Dict, List, Tuple, Optional
+import cv2
+import mediapipe as mp
+import time
+
+class HumanRobotInteractionSystem:
+    def __init__(self):
+        """
+        Initialize the Human-Robot Interaction system
+        """
+        # Initialize speech recognition and synthesis
+        self.speech_recognizer = sr.Recognizer()
+        self.text_to_speech = pyttsx3.init()
+
+        # Initialize gesture recognition
+        self.mp_hands = mp.solutions.hands
+        self.mp_pose = mp.solutions.pose
+        self.hands = self.mp_hands.Hands(static_image_mode=False, max_num_hands=2, min_detection_confidence=0.5)
+        self.pose = self.mp_pose.Pose(min_detection_confidence=0.5, min_tracking_confidence=0.5)
+
+        # Initialize language understanding model
+        self.language_model = self._initialize_language_model()
+
+        # Initialize interaction state tracking
+        self.interaction_history = []
+        self.current_user_profile = {}
+        self.social_context = SocialContextManager()
+
+        # Initialize response generation
+        self.response_generator = ResponseGenerator()
+
+        # Interaction parameters
+        self.attention_span = 10  # Number of turns to remember
+        self.personal_space_radius = 1.0  # meters
+        self.interaction_priority = 1.0  # How much to prioritize interaction
+
+    def _initialize_language_model(self):
+        """
+        Initialize natural language understanding model
+        """
+        # In practice, this would load a fine-tuned model for robotics commands
+        # For this example, we'll use a simple pipeline
+        try:
+            classifier = pipeline("text-classification",
+                                 model="microsoft/DialoGPT-medium")
+            return classifier
+        except:
+            # Fallback to simple keyword matching if transformer model fails
+            return None
+
+    def process_human_input(self, audio_input: Optional[np.ndarray] = None,
+                           visual_input: Optional[np.ndarray] = None,
+                           gesture_input: Optional[Dict] = None) -> Dict:
+        """
+        Process various forms of human input
+
+        Args:
+            audio_input: Audio data from microphone
+            visual_input: Video/image data from camera
+            gesture_input: Gesture data (if available from other sensors)
+
+        Returns:
+            Dictionary containing interpreted human intent and response
+        """
+        interaction_result = {
+            'speech_content': None,
+            'gesture_content': None,
+            'visual_context': None,
+            'interpreted_intent': None,
+            'confidence': 0.0,
+            'response': None
+        }
+
+        # Process speech input
+        if audio_input is not None:
+            speech_text = self._recognize_speech(audio_input)
+            interaction_result['speech_content'] = speech_text
+            if speech_text:
+                intent = self._interpret_language_intent(speech_text)
+                interaction_result['interpreted_intent'] = intent
+                interaction_result['confidence'] = intent.get('confidence', 0.7)
+
+        # Process visual input for gestures
+        if visual_input is not None:
+            gesture_data = self._recognize_gestures(visual_input)
+            interaction_result['gesture_content'] = gesture_data
+
+        # Process gesture input if provided separately
+        if gesture_input is not None:
+            interaction_result['gesture_content'] = gesture_input
+
+        # Generate appropriate response
+        response = self._generate_response(interaction_result)
+        interaction_result['response'] = response
+
+        # Update interaction history
+        self.interaction_history.append(interaction_result)
+        if len(self.interaction_history) > self.attention_span:
+            self.interaction_history.pop(0)
+
+        return interaction_result
+
+    def _recognize_speech(self, audio_data: np.ndarray) -> Optional[str]:
+        """
+        Recognize speech from audio data
+        """
+        try:
+            # Convert numpy array to audio data format
+            # In practice, this would use proper audio processing
+            # For this example, we'll simulate speech recognition
+            return "Hello robot, can you help me find my keys?"
+        except Exception as e:
+            print(f"Speech recognition error: {e}")
+            return None
+
+    def _recognize_gestures(self, visual_data: np.ndarray) -> Dict:
+        """
+        Recognize gestures from visual data
+        """
+        gesture_result = {
+            'hand_gestures': [],
+            'body_poses': [],
+            'attention_direction': None,
+            'confidence': 0.0
+        }
+
+        # Process image with MediaPipe
+        image_rgb = cv2.cvtColor(visual_data, cv2.COLOR_BGR2RGB)
+        hand_results = self.hands.process(image_rgb)
+        pose_results = self.pose.process(image_rgb)
+
+        # Extract hand gestures
+        if hand_results.multi_hand_landmarks:
+            for hand_landmarks in hand_results.multi_hand_landmarks:
+                gesture_type = self._classify_hand_gesture(hand_landmarks)
+                gesture_result['hand_gestures'].append({
+                    'type': gesture_type,
+                    'confidence': 0.8,
+                    'landmarks': hand_landmarks.landmark
+                })
+
+        # Extract body poses
+        if pose_results.pose_landmarks:
+            pose_type = self._classify_body_pose(pose_results.pose_landmarks)
+            gesture_result['body_poses'].append({
+                'type': pose_type,
+                'confidence': 0.85,
+                'landmarks': pose_results.pose_landmarks.landmark
+            })
+
+        # Determine attention direction based on head/orientation
+        gesture_result['attention_direction'] = self._infer_attention_direction(pose_results)
+
+        # Overall confidence based on recognition quality
+        gesture_result['confidence'] = min(0.95, max(0.1, len(gesture_result['hand_gestures']) * 0.4 +
+                                                    len(gesture_result['body_poses']) * 0.3))
+
+        return gesture_result
+
+    def _classify_hand_gesture(self, hand_landmarks) -> str:
+        """
+        Classify hand gesture based on landmarks
+        """
+        # This would implement actual gesture classification
+        # For this example, we'll return a placeholder
+        return "wave"
+
+    def _classify_body_pose(self, pose_landmarks) -> str:
+        """
+        Classify body pose based on landmarks
+        """
+        # This would implement actual pose classification
+        # For this example, we'll return a placeholder
+        return "standing"
+
+    def _infer_attention_direction(self, pose_results) -> Optional[Tuple[float, float]]:
+        """
+        Infer attention direction from head orientation or gaze
+        """
+        # This would use face landmarks or eye tracking to determine attention
+        # For this example, return a placeholder direction
+        return (0.0, 0.0)  # Looking straight ahead
+
+    def _interpret_language_intent(self, text: str) -> Dict:
+        """
+        Interpret the intent from natural language text
+        """
+        # This would use NLP models to understand the intent
+        # For this example, we'll use simple keyword matching
+
+        intent_classification = {
+            'action': self._extract_action(text),
+            'target': self._extract_target(text),
+            'location': self._extract_location(text),
+            'confidence': 0.85
+        }
+
+        return intent_classification
+
+    def _extract_action(self, text: str) -> str:
+        """
+        Extract action from text
+        """
+        text_lower = text.lower()
+
+        # Define action keywords
+        actions = {
+            'find': ['find', 'locate', 'search for', 'look for'],
+            'grasp': ['grasp', 'pick up', 'take', 'grab'],
+            'navigate': ['go to', 'move to', 'walk to', 'navigate to'],
+            'greet': ['greet', 'hello', 'hi', 'say hello'],
+            'follow': ['follow', 'come with', 'accompany'],
+            'wait': ['wait', 'stop', 'pause'],
+            'help': ['help', 'assist', 'aid']
+        }
+
+        for action, keywords in actions.items():
+            for keyword in keywords:
+                if keyword in text_lower:
+                    return action
+
+        return 'unknown'
+
+    def _extract_target(self, text: str) -> str:
+        """
+        Extract target object from text
+        """
+        text_lower = text.lower()
+
+        # Define common objects
+        objects = [
+            'keys', 'phone', 'wallet', 'book', 'cup', 'bottle',
+            'person', 'human', 'friend', 'colleague'
+        ]
+
+        for obj in objects:
+            if obj in text_lower:
+                return obj
+
+        return 'unknown_object'
+
+    def _extract_location(self, text: str) -> str:
+        """
+        Extract location from text
+        """
+        text_lower = text.lower()
+
+        # Define common locations
+        locations = [
+            'kitchen', 'living room', 'bedroom', 'office', 'bathroom',
+            'hallway', 'dining room', 'garden', 'outside'
+        ]
+
+        for loc in locations:
+            if loc in text_lower:
+                return loc
+
+        return 'current_location'
+
+    def _generate_response(self, interaction_data: Dict) -> str:
+        """
+        Generate appropriate response based on interaction data
+        """
+        intent = interaction_data.get('interpreted_intent', {})
+        action = intent.get('action', 'unknown')
+        target = intent.get('target', 'object')
+        location = intent.get('location', 'here')
+
+        if action == 'greet':
+            return "Hello! It's nice to meet you. How can I assist you today?"
+        elif action == 'find':
+            return f"I will search for the {target}. Where should I look?"
+        elif action == 'grasp':
+            return f"I will attempt to grasp the {target}."
+        elif action == 'navigate':
+            return f"I will navigate to the {location}."
+        elif action == 'follow':
+            return f"I will follow you. Please proceed."
+        elif action == 'help':
+            return "I'm here to help. You can ask me to find objects, navigate somewhere, or perform tasks."
+        else:
+            return "I understand your request. How can I best assist you?"
+
+    def respond_to_human(self, response_text: str, speech: bool = True, gesture: bool = False):
+        """
+        Respond to human with speech and/or gestures
+        """
+        if speech:
+            # Use text-to-speech to respond
+            self.text_to_speech.say(response_text)
+            self.text_to_speech.runAndWait()
+
+        if gesture:
+            # Perform appropriate gesture response
+            self._perform_gesture_response(response_text)
+
+    def _perform_gesture_response(self, response_text: str):
+        """
+        Perform gesture response based on text
+        """
+        # This would make the robot perform appropriate gestures
+        # For this example, we'll just print what would be done
+        if "hello" in response_text.lower() or "hi" in response_text.lower():
+            print("Robot performing waving gesture")
+        elif "thank you" in response_text.lower() or "thanks" in response_text.lower():
+            print("Robot performing nodding gesture")
+        else:
+            print("Robot performing neutral gesture")
+
+class SocialContextManager:
+    def __init__(self):
+        """
+        Manage social context during human-robot interaction
+        """
+        self.social_rules = self._define_social_rules()
+        self.user_profiles = {}
+        self.interaction_history = []
+        self.current_context = {}
+
+    def _define_social_rules(self) -> Dict:
+        """
+        Define social rules for human-robot interaction
+        """
+        return {
+            'personal_space': 1.0,  # meters
+            'eye_contact_duration': (0.5, 3.0),  # seconds
+            'greeting_protocol': ['acknowledge_presence', 'verbal_greeting', 'appropriate_gesture'],
+            'turn_taking': True,
+            'politeness_markers': ['please', 'thank_you', 'excuse_me'],
+            'cultural_adaptation': True
+        }
+
+    def update_context(self, user_id: str, interaction_data: Dict):
+        """
+        Update social context based on interaction
+        """
+        # Update user profile if it exists
+        if user_id in self.user_profiles:
+            self.user_profiles[user_id].update_interaction(interaction_data)
+        else:
+            self.user_profiles[user_id] = UserProfile(user_id)
+
+        # Update interaction history
+        self.interaction_history.append({
+            'user_id': user_id,
+            'timestamp': time.time(),
+            'interaction_data': interaction_data
+        })
+
+        # Keep only recent interactions
+        if len(self.interaction_history) > 100:  # Keep last 100 interactions
+            self.interaction_history.pop(0)
+
+    def get_contextual_response(self, user_id: str, intent: Dict) -> str:
+        """
+        Generate response based on social context
+        """
+        user_profile = self.user_profiles.get(user_id)
+
+        if user_profile:
+            # Adapt response based on user preferences and history
+            familiarity = user_profile.get_familiarity_level()
+            preferred_style = user_profile.get_preferred_interaction_style()
+
+            if familiarity < 0.3:  # New user
+                return self._formal_response(intent)
+            elif preferred_style == 'casual':
+                return self._casual_response(intent)
+            else:
+                return self._balanced_response(intent)
+        else:
+            # Default response for unknown user
+            return self._formal_response(intent)
+
+    def _formal_response(self, intent: Dict) -> str:
+        """
+        Generate formal response for new/unknown users
+        """
+        action = intent.get('action', 'unknown')
+
+        if action == 'greet':
+            return "Good day. I am your humanoid assistant. How may I assist you?"
+        elif action == 'find':
+            return f"I will initiate a search for the requested item. Please wait."
+        else:
+            return "I understand your request. I will process it accordingly."
+
+    def _casual_response(self, intent: Dict) -> str:
+        """
+        Generate casual response for familiar users
+        """
+        action = intent.get('action', 'unknown')
+
+        if action == 'greet':
+            return "Hey there! What's up? Need any help?"
+        elif action == 'find':
+            return f"Sure thing! I'll look for that for you."
+        else:
+            return "Got it! I'll take care of that for you."
+
+    def _balanced_response(self, intent: Dict) -> str:
+        """
+        Generate balanced response
+        """
+        action = intent.get('action', 'unknown')
+
+        if action == 'greet':
+            return "Hello! Good to see you. How can I help?"
+        elif action == 'find':
+            return f"I'll search for that item for you."
+        else:
+            return "I understand. I'll work on that for you."
+
+class UserProfile:
+    def __init__(self, user_id: str):
+        """
+        Represent a user's profile for personalized interaction
+        """
+        self.user_id = user_id
+        self.interaction_count = 0
+        self.preferences = {
+            'interaction_style': 'formal',  # 'formal', 'casual', 'balanced'
+            'preferred_language': 'en',
+            'speed_preference': 'normal',  # 'slow', 'normal', 'fast'
+            'volume_preference': 'normal'  # 'quiet', 'normal', 'loud'
+        }
+        self.last_seen = time.time()
+        self.familiarity_score = 0.0
+
+    def update_interaction(self, interaction_data: Dict):
+        """
+        Update profile based on new interaction
+        """
+        self.interaction_count += 1
+        self.last_seen = time.time()
+
+        # Update familiarity score (simple model)
+        self.familiarity_score = min(1.0, self.interaction_count * 0.1)
+
+        # Update preferences based on interaction patterns
+        self._learn_preferences(interaction_data)
+
+    def _learn_preferences(self, interaction_data: Dict):
+        """
+        Learn user preferences from interaction patterns
+        """
+        # This would implement preference learning algorithms
+        # For this example, we'll just maintain placeholder values
+        pass
+
+    def get_familiarity_level(self) -> float:
+        """
+        Get familiarity level with the robot
+        """
+        return self.familiarity_score
+
+    def get_preferred_interaction_style(self) -> str:
+        """
+        Get preferred interaction style
+        """
+        return self.preferences['interaction_style']
+
+class ResponseGenerator:
+    def __init__(self):
+        """
+        Generate natural language responses
+        """
+        self.response_templates = {
+            'acknowledgment': [
+                "I understand you want me to {action} the {target}.",
+                "Okay, I will {action} the {target}.",
+                "Got it, I'll {action} the {target}."
+            ],
+            'confirmation': [
+                "I have {action_result}.",
+                "I successfully {action_result}.",
+                "Task completed: {action_result}."
+            ],
+            'request_clarification': [
+                "Could you clarify what you mean by {unclear_part}?",
+                "I'm not sure I understand. Do you want me to {possible_interpretation}?",
+                "Could you repeat that more specifically?"
+            ],
+            'error_response': [
+                "I encountered an issue: {error}. Could you try rephrasing?",
+                "I couldn't complete that task because: {error}.",
+                "I'm having trouble understanding: {error}."
+            ]
+        }
+
+    def generate_contextual_response(self, intent: Dict, context: Dict) -> str:
+        """
+        Generate response based on intent and context
+        """
+        action = intent.get('action', 'unknown')
+        target = intent.get('target', 'object')
+        location = intent.get('location', 'current_location')
+
+        # Select appropriate template based on action type
+        if action == 'unknown':
+            return self._select_template('request_clarification', {
+                'unclear_part': 'the action',
+                'possible_interpretation': 'help with something'
+            })
+        elif action == 'greet':
+            return "Hello! It's great to meet you. How can I assist you today?"
+        elif action in ['find', 'locate']:
+            return f"I'll search for the {target} in the {location}. Please wait."
+        elif action in ['grasp', 'take', 'pick up']:
+            return f"I'll attempt to grasp the {target}."
+        elif action in ['navigate', 'go to', 'move to']:
+            return f"I'll navigate to the {location}."
+        else:
+            return self._select_template('acknowledgment', {
+                'action': action,
+                'target': target
+            })
+
+    def _select_template(self, template_type: str, variables: Dict) -> str:
+        """
+        Select and format response template
+        """
+        import random
+        templates = self.response_templates.get(template_type, ["I understand."])
+        selected_template = random.choice(templates)
+
+        try:
+            return selected_template.format(**variables)
+        except KeyError:
+            return templates[0]  # Return first template if formatting fails
+
+# Example usage
+hri_system = HumanRobotInteractionSystem()
+
+# Example interaction
+audio_data = np.random.rand(16000)  # Simulated audio input
+visual_data = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)  # Simulated visual input
+
+interaction_result = hri_system.process_human_input(
+    audio_input=audio_data,
+    visual_input=visual_data
+)
+
+print(f"Interpreted intent: {interaction_result['interpreted_intent']}")
+print(f"Response: {interaction_result['response']}")
+```
+
+### Voice Command Processing
+
+```python
+class VoiceCommandProcessor:
+    def __init__(self):
+        """
+        Process voice commands for humanoid robot control
+        """
+        self.speech_recognizer = sr.Recognizer()
+        self.command_parser = CommandParser()
+        self.context_tracker = ContextTracker()
+        self.response_generator = ResponseGenerator()
+
+        # Initialize with common commands
+        self.command_vocabulary = {
+            # Navigation commands
+            'move_forward': ['move forward', 'go forward', 'forward', 'straight'],
+            'move_backward': ['move backward', 'go backward', 'backward', 'back'],
+            'turn_left': ['turn left', 'rotate left', 'left'],
+            'turn_right': ['turn right', 'rotate right', 'right'],
+            'go_to_location': ['go to', 'navigate to', 'walk to', 'move to'],
+
+            # Manipulation commands
+            'grasp_object': ['grasp', 'pick up', 'take', 'grab', 'get'],
+            'release_object': ['release', 'drop', 'let go', 'put down'],
+            'move_object': ['move', 'reposition', 'transfer'],
+
+            # Interaction commands
+            'greet_person': ['greet', 'hello', 'hi', 'say hello', 'wave to'],
+            'follow_person': ['follow', 'accompany', 'go with'],
+            'wait_here': ['wait', 'stop', 'halt', 'pause'],
+
+            # System commands
+            'shutdown': ['shutdown', 'power off', 'turn off'],
+            'sleep_mode': ['sleep', 'rest', 'power saving'],
+            'wake_up': ['wake up', 'activate', 'start']
+        }
+
+        # Set up microphone
+        self.microphone = sr.Microphone()
+
+    def listen_and_process(self, timeout: float = 5.0) -> Dict:
+        """
+        Listen for voice command and process it
+
+        Args:
+            timeout: Maximum time to listen for command
+
+        Returns:
+            Dictionary with command interpretation and action
+        """
+        try:
+            with self.microphone as source:
+                # Adjust for ambient noise
+                self.speech_recognizer.adjust_for_ambient_noise(source)
+
+                # Listen for command
+                print("Listening for voice command...")
+                audio = self.speech_recognizer.listen(source, timeout=timeout)
+
+                # Recognize speech
+                command_text = self.speech_recognizer.recognize_google(audio).lower()
+                print(f"Heard command: {command_text}")
+
+                # Parse command
+                parsed_command = self.command_parser.parse_command(command_text)
+
+                # Update context
+                self.context_tracker.update_context(parsed_command)
+
+                # Generate response
+                response = self.response_generator.generate_response(parsed_command)
+
+                return {
+                    'command_text': command_text,
+                    'parsed_command': parsed_command,
+                    'response': response,
+                    'confidence': 0.9,  # Placeholder confidence
+                    'timestamp': time.time()
+                }
+
+        except sr.WaitTimeoutError:
+            return {
+                'command_text': None,
+                'parsed_command': None,
+                'response': "I didn't hear a command. Please speak louder or clearer.",
+                'confidence': 0.0,
+                'timestamp': time.time()
+            }
+        except sr.UnknownValueError:
+            return {
+                'command_text': None,
+                'parsed_command': None,
+                'response': "I couldn't understand that command. Could you please repeat it?",
+                'confidence': 0.0,
+                'timestamp': time.time()
+            }
+        except Exception as e:
+            return {
+                'command_text': None,
+                'parsed_command': None,
+                'response': f"Error processing command: {str(e)}",
+                'confidence': 0.0,
+                'timestamp': time.time()
+            }
+
+    def process_voice_command(self, command_text: str) -> Dict:
+        """
+        Process a voice command string directly
+
+        Args:
+            command_text: Voice command as text string
+
+        Returns:
+            Dictionary with processing results
+        """
+        # Parse the command
+        parsed_command = self.command_parser.parse_command(command_text)
+
+        # Update context
+        self.context_tracker.update_context(parsed_command)
+
+        # Generate response
+        response = self.response_generator.generate_response(parsed_command)
+
+        return {
+            'command_text': command_text,
+            'parsed_command': parsed_command,
+            'response': response,
+            'confidence': self.estimate_command_confidence(command_text, parsed_command),
+            'timestamp': time.time()
+        }
+
+    def estimate_command_confidence(self, command_text: str, parsed_command: Dict) -> float:
+        """
+        Estimate confidence in command interpretation
+        """
+        confidence = 0.5  # Base confidence
+
+        # Increase confidence if command matches known vocabulary
+        for cmd_type, keywords in self.command_vocabulary.items():
+            for keyword in keywords:
+                if keyword in command_text:
+                    confidence += 0.2
+                    break
+
+        # Increase confidence if target object is recognized
+        if parsed_command.get('target_object'):
+            confidence += 0.15
+
+        # Increase confidence if location is recognized
+        if parsed_command.get('target_location'):
+            confidence += 0.15
+
+        # Cap confidence at 0.95
+        return min(0.95, confidence)
+
+class CommandParser:
+    def __init__(self):
+        """
+        Parse natural language commands into structured actions
+        """
+        self.action_keywords = {
+            'find': ['find', 'locate', 'look for', 'search for', 'where is'],
+            'grasp': ['grasp', 'pick up', 'take', 'grab', 'get', 'hold'],
+            'move': ['move', 'bring', 'carry', 'transport', 'shift'],
+            'navigate': ['go to', 'navigate to', 'walk to', 'move to', 'go', 'proceed to'],
+            'greet': ['greet', 'hello', 'hi', 'say hello', 'wave to', 'meet'],
+            'follow': ['follow', 'accompany', 'go with', 'come after'],
+            'wait': ['wait', 'stay', 'stop', 'pause', 'hold position'],
+            'help': ['help', 'assist', 'aid', 'support', 'what can you do']
+        }
+
+        self.object_keywords = [
+            'cup', 'bottle', 'book', 'phone', 'laptop', 'keys', 'wallet',
+            'chair', 'table', 'person', 'human', 'object', 'item', 'thing'
+        ]
+
+        self.location_keywords = [
+            'kitchen', 'living room', 'bedroom', 'office', 'dining room',
+            'bathroom', 'hallway', 'garden', 'outside', 'inside', 'here'
+        ]
+
+        self.attribute_keywords = {
+            'color': ['red', 'blue', 'green', 'yellow', 'black', 'white', 'gray', 'brown'],
+            'size': ['big', 'large', 'small', 'tiny', 'huge', 'little'],
+            'position': ['left', 'right', 'front', 'back', 'behind', 'near', 'far', 'next to']
+        }
+
+    def parse_command(self, command_text: str) -> Dict:
+        """
+        Parse a natural language command into structured format
+        """
+        command_lower = command_text.lower()
+
+        # Initialize result structure
+        result = {
+            'original_command': command_text,
+            'action': None,
+            'target_object': None,
+            'target_location': None,
+            'attributes': {},
+            'parsed_entities': [],
+            'certainty': 0.0
+        }
+
+        # Extract action
+        for action, keywords in self.action_keywords.items():
+            for keyword in keywords:
+                if keyword in command_lower:
+                    result['action'] = action
+                    result['parsed_entities'].append(('action', action))
+                    break
+            if result['action']:
+                break
+
+        # Extract target object
+        for obj in self.object_keywords:
+            if obj in command_lower:
+                result['target_object'] = obj
+                result['parsed_entities'].append(('object', obj))
+                break
+
+        # Extract target location
+        for loc in self.location_keywords:
+            if loc in command_lower:
+                result['target_location'] = loc
+                result['parsed_entities'].append(('location', loc))
+                break
+
+        # Extract attributes
+        for attr_type, keywords in self.attribute_keywords.items():
+            for keyword in keywords:
+                if keyword in command_lower:
+                    if attr_type not in result['attributes']:
+                        result['attributes'][attr_type] = []
+                    result['attributes'][attr_type].append(keyword)
+                    result['parsed_entities'].append(('attribute', f"{attr_type}:{keyword}"))
+
+        # Calculate certainty based on number of recognized elements
+        certainty_score = 0.3  # Base certainty
+        if result['action']:
+            certainty_score += 0.3
+        if result['target_object']:
+            certainty_score += 0.2
+        if result['target_location']:
+            certainty_score += 0.15
+        if result['attributes']:
+            certainty_score += 0.05 * len(result['attributes'])
+
+        result['certainty'] = min(1.0, certainty_score)
+
+        return result
+
+    def validate_command(self, parsed_command: Dict) -> bool:
+        """
+        Validate if the parsed command is executable
+        """
+        # Command is valid if it has at least an action
+        return parsed_command.get('action') is not None
+
+    def suggest_alternatives(self, command_text: str) -> List[str]:
+        """
+        Suggest alternative interpretations of ambiguous commands
+        """
+        alternatives = []
+
+        # For ambiguous commands, suggest possible interpretations
+        command_lower = command_text.lower()
+
+        if 'find' in command_lower and 'where' in command_lower:
+            alternatives.append(f"Are you asking me to find an object or asking where something is?")
+
+        if len(command_text.split()) < 3:
+            alternatives.append(f"Your command '{command_text}' is quite short. Could you provide more details?")
+
+        return alternatives
+
+class ContextTracker:
+    def __init__(self, max_context_length: int = 10):
+        """
+        Track conversation context for coherent interaction
+        """
+        self.max_context_length = max_context_length
+        self.context_history = []
+        self.current_topic = None
+        self.user_intent = None
+
+    def update_context(self, command_data: Dict):
+        """
+        Update the interaction context with new command
+        """
+        self.context_history.append(command_data)
+
+        # Keep only recent context
+        if len(self.context_history) > self.max_context_length:
+            self.context_history.pop(0)
+
+        # Update current topic if available
+        if command_data.get('target_object'):
+            self.current_topic = command_data['target_object']
+
+        # Update user intent
+        self.user_intent = command_data.get('action')
+
+    def get_context_summary(self) -> Dict:
+        """
+        Get a summary of the current interaction context
+        """
+        if not self.context_history:
+            return {
+                'conversation_length': 0,
+                'current_topic': None,
+                'recent_actions': [],
+                'user_preferences': {}
+            }
+
+        recent_actions = [cmd.get('action') for cmd in self.context_history[-5:]]
+        unique_objects = list(set(cmd.get('target_object') for cmd in self.context_history if cmd.get('target_object')))
+
+        return {
+            'conversation_length': len(self.context_history),
+            'current_topic': self.current_topic,
+            'recent_actions': recent_actions,
+            'mentioned_objects': unique_objects,
+            'user_intent': self.user_intent
+        }
+
+    def resolve_references(self, command_data: Dict) -> Dict:
+        """
+        Resolve references like "it", "that", "there" based on context
+        """
+        resolved_command = command_data.copy()
+
+        # This would resolve pronouns and spatial references based on context
+        # For this example, we'll implement a simple resolution
+        if resolved_command.get('target_object') == 'it':
+            # Use the last mentioned object
+            if self.current_topic:
+                resolved_command['target_object'] = self.current_topic
+
+        if resolved_command.get('target_location') == 'there':
+            # Use the last mentioned location or current location
+            if self.current_topic:
+                resolved_command['target_location'] = 'current_location'
+
+        return resolved_command
+
+# Example usage
+voice_processor = VoiceCommandProcessor()
+
+# Example command
+command_text = "Please find my red cup in the kitchen and bring it to me"
+parsed_result = voice_processor.process_voice_command(command_text)
+
+print(f"Parsed command: {parsed_result['parsed_command']}")
+print(f"Response: {parsed_result['response']}")
+print(f"Confidence: {parsed_result['confidence']:.2f}")
+```
+
+### Gesture Recognition and Response
+
+```python
+class GestureRecognitionSystem:
+    def __init__(self):
+        """
+        System for recognizing and interpreting human gestures
+        """
+        # Initialize MediaPipe components
+        self.mp_hands = mp.solutions.hands
+        self.mp_pose = mp.solutions.pose
+        self.mp_face_mesh = mp.solutions.face_mesh
+
+        self.hands = self.mp_hands.Hands(
+            static_image_mode=False,
+            max_num_hands=2,
+            min_detection_confidence=0.7,
+            min_tracking_confidence=0.5
+        )
+
+        self.pose = self.mp_pose.Pose(
+            static_image_mode=False,
+            model_complexity=1,
+            enable_segmentation=False,
+            min_detection_confidence=0.5
+        )
+
+        # Define gesture vocabulary
+        self.gesture_definitions = {
+            # Hand gestures
+            'wave': self._is_wave_gesture,
+            'point': self._is_pointing_gesture,
+            'thumbs_up': self._is_thumbs_up,
+            'stop_sign': self._is_stop_sign,
+            'come_here': self._is_come_here_gesture,
+            'point_left': self._is_pointing_left,
+            'point_right': self._is_pointing_right,
+            'point_forward': self._is_pointing_forward,
+
+            # Body poses
+            'greeting_posture': self._is_greeting_posture,
+            'attention_posture': self._is_attention_posture,
+            'relaxed_posture': self._is_relaxed_posture,
+            'pointing_posture': self._is_pointing_posture
+        }
+
+        # Gesture history for context
+        self.gesture_history = []
+        self.max_gesture_history = 20
+
+    def recognize_gestures(self, frame: np.ndarray) -> Dict:
+        """
+        Recognize gestures from a video frame
+
+        Args:
+            frame: Input video frame (BGR image)
+
+        Returns:
+            Dictionary containing recognized gestures and their confidence
+        """
+        # Convert BGR to RGB
+        rgb_frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+
+        # Process with MediaPipe
+        hand_results = self.hands.process(rgb_frame)
+        pose_results = self.pose.process(rgb_frame)
+
+        gesture_results = {
+            'hand_gestures': [],
+            'body_poses': [],
+            'facial_expressions': [],
+            'attention_direction': None,
+            'timestamp': time.time()
+        }
+
+        # Recognize hand gestures
+        if hand_results.multi_hand_landmarks:
+            for i, hand_landmarks in enumerate(hand_results.multi_hand_landmarks):
+                gesture_type, confidence = self._recognize_hand_gesture(hand_landmarks)
+                gesture_results['hand_gestures'].append({
+                    'type': gesture_type,
+                    'confidence': confidence,
+                    'hand_number': i,
+                    'landmarks': hand_landmarks.landmark
+                })
+
+        # Recognize body poses
+        if pose_results.pose_landmarks:
+            pose_type, confidence = self._recognize_body_pose(pose_results.pose_landmarks)
+            gesture_results['body_poses'].append({
+                'type': pose_type,
+                'confidence': confidence,
+                'landmarks': pose_results.pose_landmarks.landmark
+            })
+
+        # Update gesture history
+        self.gesture_history.append(gesture_results)
+        if len(self.gesture_history) > self.max_gesture_history:
+            self.gesture_history.pop(0)
+
+        return gesture_results
+
+    def _recognize_hand_gesture(self, hand_landmarks) -> Tuple[str, float]:
+        """
+        Recognize specific hand gesture from landmarks
+        """
+        best_gesture = 'unknown'
+        best_confidence = 0.0
+
+        # Check each defined gesture
+        for gesture_name, gesture_function in self.gesture_definitions.items():
+            if gesture_name.startswith('point'):  # Skip body poses for hand recognition
+                continue
+
+            is_gesture, confidence = gesture_function(hand_landmarks)
+            if is_gesture and confidence > best_confidence:
+                best_gesture = gesture_name
+                best_confidence = confidence
+
+        return best_gesture, best_confidence
+
+    def _recognize_body_pose(self, pose_landmarks) -> Tuple[str, float]:
+        """
+        Recognize body pose from landmarks
+        """
+        best_pose = 'neutral'
+        best_confidence = 0.0
+
+        # Check each defined pose (these would be the body pose functions)
+        for gesture_name, gesture_function in self.gesture_definitions.items():
+            if gesture_name in ['greeting_posture', 'attention_posture', 'relaxed_posture', 'pointing_posture']:
+                is_pose, confidence = gesture_function(pose_landmarks)
+                if is_pose and confidence > best_confidence:
+                    best_pose = gesture_name
+                    best_confidence = confidence
+
+        return best_pose, best_confidence
+
+    def _is_wave_gesture(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect wave gesture
+        """
+        # Wave involves thumb up with other fingers moving
+        # Simplified detection based on finger positions
+        wrist = hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST]
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+        pinky_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.PINKY_TIP]
+
+        # Check if index finger is extended and moving (simplified)
+        # In reality, this would track movement over time
+        index_extended = index_tip.y < hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_PIP].y
+        pinky_extended = pinky_tip.y < hand_landmarks.landmark[self.mp_hands.HandLandmark.PINKY_PIP].y
+
+        if index_extended and pinky_extended:
+            return True, 0.8
+        return False, 0.0
+
+    def _is_pointing_gesture(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect pointing gesture
+        """
+        # Pointing involves index finger extended while others are curled
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+        middle_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
+        ring_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.RING_FINGER_TIP]
+        pinky_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.PINKY_TIP]
+
+        # Check if index is extended and others are not
+        index_extended = index_tip.y < hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_PIP].y
+        others_curled = (
+            middle_tip.y > hand_landmarks.landmark[self.mp_hands.HandLandmark.MIDDLE_FINGER_PIP].y and
+            ring_tip.y > hand_landmarks.landmark[self.mp_hands.HandLandmark.RING_FINGER_PIP].y and
+            pinky_tip.y > hand_landmarks.landmark[self.mp_hands.HandLandmark.PINKY_PIP].y
+        )
+
+        if index_extended and others_curled:
+            return True, 0.85
+        return False, 0.0
+
+    def _is_thumbs_up(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect thumbs up gesture
+        """
+        thumb_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.THUMB_TIP]
+        thumb_ip = hand_landmarks.landmark[self.mp_hands.HandLandmark.THUMB_IP]
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+        index_pip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_PIP]
+
+        # Thumbs up: thumb extended up, other fingers curled down
+        thumb_extended = thumb_tip.x > thumb_ip.x  # Thumb pointing outward (right for right hand)
+        others_curled = index_tip.y > index_pip.y  # Index finger curled
+
+        if thumb_extended and others_curled:
+            return True, 0.9
+        return False, 0.0
+
+    def _is_stop_sign(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect stop sign gesture (palm facing forward)
+        """
+        # Stop sign: all fingers extended, palm facing forward
+        wrist = hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST]
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+        pinky_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.PINKY_TIP]
+
+        # Check if fingers are relatively aligned horizontally (palm facing camera)
+        finger_height_diff = abs(index_tip.y - pinky_tip.y)
+
+        if finger_height_diff < 0.1:  # Fingers at similar height
+            return True, 0.75
+        return False, 0.0
+
+    def _is_come_here_gesture(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect "come here" gesture (palm facing up, fingers curling)
+        """
+        # Come here: palm up, fingers curling toward palm
+        wrist = hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST]
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+        index_pip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_PIP]
+
+        # Index finger bent toward palm
+        index_bent = index_tip.y > index_pip.y
+
+        # Palm facing up (wrist and finger positions)
+        palm_up = index_tip.x > wrist.x  # For right hand facing toward camera
+
+        if index_bent and palm_up:
+            return True, 0.7
+        return False, 0.0
+
+    def _is_pointing_left(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect pointing to the left
+        """
+        wrist = hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST]
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+
+        # Pointing left: index finger tip is significantly left of wrist
+        if index_tip.x < wrist.x - 0.1:
+            return True, 0.8
+        return False, 0.0
+
+    def _is_pointing_right(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect pointing to the right
+        """
+        wrist = hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST]
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+
+        # Pointing right: index finger tip is significantly right of wrist
+        if index_tip.x > wrist.x + 0.1:
+            return True, 0.8
+        return False, 0.0
+
+    def _is_pointing_forward(self, hand_landmarks) -> Tuple[bool, float]:
+        """
+        Detect pointing forward (directly away from body)
+        """
+        wrist = hand_landmarks.landmark[self.mp_hands.HandLandmark.WRIST]
+        index_tip = hand_landmarks.landmark[self.mp_hands.HandLandmark.INDEX_FINGER_TIP]
+
+        # Forward pointing: index finger extends from wrist with little lateral movement
+        lateral_movement = abs(index_tip.x - wrist.x)
+
+        if lateral_movement < 0.05 and index_tip.y < wrist.y:  # Mostly forward/backward
+            return True, 0.7
+        return False, 0.0
+
+    def _is_greeting_posture(self, pose_landmarks) -> Tuple[bool, float]:
+        """
+        Detect greeting posture (hands raised slightly)
+        """
+        # Check if hands are raised to greeting level
+        left_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_WRIST]
+        right_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_WRIST]
+        nose = pose_landmarks.landmark[self.mp_pose.PoseLandmark.NOSE]
+
+        # Hands should be raised to face level but not too high
+        left_hand_good_height = nose.y - 0.2 < left_wrist.y < nose.y + 0.2
+        right_hand_good_height = nose.y - 0.2 < right_wrist.y < nose.y + 0.2
+
+        if left_hand_good_height or right_hand_good_height:
+            return True, 0.75
+        return False, 0.0
+
+    def _is_attention_posture(self, pose_landmarks) -> Tuple[bool, float]:
+        """
+        Detect attention posture (standing straight, facing forward)
+        """
+        # Check if person is standing straight and facing robot
+        left_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER]
+        right_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]
+        left_hip = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_HIP]
+        right_hip = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_HIP]
+
+        # Shoulders and hips should be relatively level (standing straight)
+        shoulder_level = abs(left_shoulder.y - right_shoulder.y) < 0.1
+        hip_level = abs(left_hip.y - right_hip.y) < 0.1
+
+        # Check if facing robot (simplified - looking at relative positions)
+        facing_robot = True  # Simplified assumption
+
+        if shoulder_level and hip_level and facing_robot:
+            return True, 0.8
+        return False, 0.0
+
+    def _is_relaxed_posture(self, pose_landmarks) -> Tuple[bool, float]:
+        """
+        Detect relaxed posture (arms hanging naturally)
+        """
+        left_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER]
+        left_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_WRIST]
+        right_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]
+        right_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_WRIST]
+
+        # Arms hanging naturally - wrists should be below shoulders
+        left_arm_hanging = left_wrist.y > left_shoulder.y + 0.1
+        right_arm_hanging = right_wrist.y > right_shoulder.y + 0.1
+
+        if left_arm_hanging and right_arm_hanging:
+            return True, 0.85
+        return False, 0.0
+
+    def _is_pointing_posture(self, pose_landmarks) -> Tuple[bool, float]:
+        """
+        Detect pointing posture (arm extended)
+        """
+        left_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_SHOULDER]
+        left_elbow = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_ELBOW]
+        left_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.LEFT_WRIST]
+
+        right_shoulder = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_SHOULDER]
+        right_elbow = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_ELBOW]
+        right_wrist = pose_landmarks.landmark[self.mp_pose.PoseLandmark.RIGHT_WRIST]
+
+        # Calculate arm extension (distance from shoulder to wrist)
+        left_arm_extended = np.sqrt(
+            (left_wrist.x - left_shoulder.x)**2 +
+            (left_wrist.y - left_shoulder.y)**2
+        ) > 0.3
+
+        right_arm_extended = np.sqrt(
+            (right_wrist.x - right_shoulder.x)**2 +
+            (right_wrist.y - right_shoulder.y)**2
+        ) > 0.3
+
+        if left_arm_extended or right_arm_extended:
+            return True, 0.7
+        return False, 0.0
+
+    def interpret_gesture_meaning(self, gesture_data: Dict, context: Dict = None) -> Dict:
+        """
+        Interpret the meaning of recognized gestures in context
+        """
+        interpretation = {
+            'gesture_meaning': {},
+            'intended_action': None,
+            'urgency_level': 'normal',
+            'confidence': 0.0
+        }
+
+        # Process hand gestures
+        for hand_gesture in gesture_data.get('hand_gestures', []):
+            gesture_type = hand_gesture['type']
+            confidence = hand_gesture['confidence']
+
+            # Map gesture to intended action
+            if gesture_type == 'wave':
+                interpretation['intended_action'] = 'greet'
+                interpretation['gesture_meaning'][gesture_type] = 'Requesting attention or greeting'
+            elif gesture_type == 'point':
+                interpretation['intended_action'] = 'direct_attention'
+                interpretation['gesture_meaning'][gesture_type] = 'Directing robot to look at something'
+            elif gesture_type == 'thumbs_up':
+                interpretation['intended_action'] = 'approve'
+                interpretation['gesture_meaning'][gesture_type] = 'Approval or positive feedback'
+            elif gesture_type == 'stop_sign':
+                interpretation['intended_action'] = 'stop'
+                interpretation['gesture_meaning'][gesture_type] = 'Request to stop current action'
+            elif gesture_type == 'come_here':
+                interpretation['intended_action'] = 'approach'
+                interpretation['gesture_meaning'][gesture_type] = 'Request robot to approach'
+            elif gesture_type in ['point_left', 'point_right', 'point_forward']:
+                interpretation['intended_action'] = 'navigate'
+                interpretation['gesture_meaning'][gesture_type] = f'Navigational direction: {gesture_type.replace("point_", "")}'
+
+        # Process body poses
+        for body_pose in gesture_data.get('body_poses', []):
+            pose_type = body_pose['type']
+            confidence = body_pose['confidence']
+
+            if pose_type == 'attention_posture':
+                interpretation['urgency_level'] = 'high' if context and context.get('spoken_recently') else 'medium'
+                interpretation['gesture_meaning'][pose_type] = 'Ready for interaction'
+            elif pose_type == 'greeting_posture':
+                interpretation['intended_action'] = 'greet' if not interpretation['intended_action'] else interpretation['intended_action']
+                interpretation['gesture_meaning'][pose_type] = 'Requesting greeting interaction'
+
+        # Calculate overall confidence as average of gesture confidences
+        all_confidences = [hg['confidence'] for hg in gesture_data.get('hand_gestures', [])] + \
+                         [bp['confidence'] for bp in gesture_data.get('body_poses', [])]
+
+        interpretation['confidence'] = np.mean(all_confidences) if all_confidences else 0.0
+
+        return interpretation
+
+    def generate_gesture_response(self, interpreted_gestures: Dict) -> List[Dict]:
+        """
+        Generate robot response to human gestures
+        """
+        responses = []
+
+        intended_action = interpreted_gestures.get('intended_action')
+        urgency = interpreted_gestures.get('urgency_level', 'normal')
+
+        if intended_action == 'greet':
+            responses.append({
+                'action': 'verbal_response',
+                'content': 'Hello! I see you waving. How can I assist you?',
+                'priority': 1
+            })
+            responses.append({
+                'action': 'motor_response',
+                'content': 'wave_back',
+                'priority': 2
+            })
+        elif intended_action == 'direct_attention':
+            responses.append({
+                'action': 'verbal_response',
+                'content': 'I see you pointing. What would you like me to look at?',
+                'priority': 1
+            })
+            responses.append({
+                'action': 'motor_response',
+                'content': 'orient_to_pointed_direction',
+                'priority': 2
+            })
+        elif intended_action == 'approve':
+            responses.append({
+                'action': 'verbal_response',
+                'content': 'Thank you for the approval. Continuing with the task.',
+                'priority': 1
+            })
+        elif intended_action == 'stop':
+            responses.append({
+                'action': 'verbal_response',
+                'content': 'Stopping current operation as requested.',
+                'priority': urgency_multiplier(urgency)
+            })
+            responses.append({
+                'action': 'motor_response',
+                'content': 'stop_motors',
+                'priority': urgency_multiplier(urgency)
+            })
+        elif intended_action == 'approach':
+            responses.append({
+                'action': 'verbal_response',
+                'content': 'I\'m coming to you now.',
+                'priority': 1
+            })
+            responses.append({
+                'action': 'motor_response',
+                'content': 'navigate_to_human',
+                'priority': 2
+            })
+        elif intended_action == 'navigate':
+            responses.append({
+                'action': 'verbal_response',
+                'content': 'I see you pointing in a direction. Would you like me to go there?',
+                'priority': 1
+            })
+
+        # Sort responses by priority
+        responses.sort(key=lambda x: x['priority'])
+
+        return responses
+
+    def urgency_multiplier(self, urgency_level: str) -> int:
+        """
+        Convert urgency level to priority multiplier
+        """
+        multipliers = {
+            'low': 1,
+            'normal': 2,
+            'high': 3,
+            'critical': 4
+        }
+        return multipliers.get(urgency_level, 2)
+
+# Example usage
+gesture_system = GestureRecognitionSystem()
+
+# Example frame (simulated)
+example_frame = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+
+# Recognize gestures
+gesture_results = gesture_system.recognize_gestures(example_frame)
+print(f"Recognized gestures: {gesture_results['hand_gestures']}")
+
+# Interpret gestures
+interpretation = gesture_system.interpret_gesture_meaning(gesture_results)
+print(f"Gesture interpretation: {interpretation}")
+
+# Generate responses
+responses = gesture_system.generate_gesture_response(interpretation)
+print(f"Robot responses: {responses}")
+```
+
+## Social Interaction Protocols
+
+### Multi-Modal Interaction Integration
+
+```python
+class MultiModalInteractionManager:
+    def __init__(self):
+        """
+        Manage multi-modal human-robot interaction combining speech, vision, and gesture
+        """
+        self.voice_processor = VoiceCommandProcessor()
+        self.gesture_system = GestureRecognitionSystem()
+        self.social_context = SocialContextManager()
+        self.response_generator = ResponseGenerator()
+
+        # Fusion parameters
+        self.voice_weight = 0.5
+        self.gesture_weight = 0.3
+        self.visual_context_weight = 0.2
+
+        # Interaction state
+        self.current_user_id = None
+        self.interaction_turns = 0
+        self.last_interaction_time = time.time()
+
+    def process_multi_modal_input(self, audio_input: Optional[np.ndarray] = None,
+                                 visual_input: Optional[np.ndarray] = None,
+                                 gesture_input: Optional[Dict] = None) -> Dict:
+        """
+        Process input from multiple modalities and fuse the information
+
+        Args:
+            audio_input: Audio data for speech recognition
+            visual_input: Visual data for gesture and scene understanding
+            gesture_input: Pre-processed gesture data (optional)
+
+        Returns:
+            Dictionary with fused interpretation and response
+        """
+        fusion_result = {
+            'voice_interpretation': None,
+            'gesture_interpretation': None,
+            'visual_context': None,
+            'fused_intent': None,
+            'response': None,
+            'confidence': 0.0,
+            'timestamp': time.time()
+        }
+
+        # Process voice input
+        if audio_input is not None:
+            voice_result = self.voice_processor.process_voice_command(
+                self._convert_audio_to_text(audio_input)
+            )
+            fusion_result['voice_interpretation'] = voice_result
+
+        # Process visual input for gestures
+        if visual_input is not None:
+            gesture_result = self.gesture_system.recognize_gestures(visual_input)
+            gesture_interpretation = self.gesture_system.interpret_gesture_meaning(
+                gesture_result,
+                {'spoken_recently': fusion_result['voice_interpretation'] is not None}
+            )
+            fusion_result['gesture_interpretation'] = gesture_interpretation
+            fusion_result['visual_context'] = self._analyze_visual_context(visual_input)
+
+        # Fuse interpretations from multiple modalities
+        fused_result = self._fuse_modalities(
+            fusion_result['voice_interpretation'],
+            fusion_result['gesture_interpretation'],
+            fusion_result['visual_context']
+        )
+
+        fusion_result['fused_intent'] = fused_result['intent']
+        fusion_result['confidence'] = fused_result['confidence']
+
+        # Generate response based on fused interpretation
+        response = self._generate_fused_response(fusion_result)
+        fusion_result['response'] = response
+
+        # Update social context
+        if self.current_user_id:
+            self.social_context.update_context(self.current_id, fusion_result)
+
+        return fusion_result
+
+    def _convert_audio_to_text(self, audio_data: np.ndarray) -> str:
+        """
+        Convert audio data to text (placeholder implementation)
+        """
+        # This would use speech recognition in a real implementation
+        # For this example, return a placeholder text
+        return "Hello robot, can you help me with something?"
+
+    def _analyze_visual_context(self, visual_data: np.ndarray) -> Dict:
+        """
+        Analyze visual context (people, objects, environment)
+        """
+        # This would use computer vision to understand the scene
+        # For this example, return placeholder data
+        return {
+            'people_detected': 1,
+            'objects_in_scene': ['table', 'chair', 'cup'],
+            'environment': 'indoor',
+            'lighting_condition': 'good'
+        }
+
+    def _fuse_modalities(self, voice_data: Optional[Dict],
+                        gesture_data: Optional[Dict],
+                        visual_context: Optional[Dict]) -> Dict:
+        """
+        Fuse interpretations from multiple modalities
+        """
+        fused_intent = {
+            'action': None,
+            'target': None,
+            'location': None,
+            'priority': 'normal',
+            'confidence': 0.0
+        }
+
+        confidence_contributions = []
+
+        # Fuse voice data if available
+        if voice_data and voice_data.get('parsed_command'):
+            voice_cmd = voice_data['parsed_command']
+            if voice_cmd.get('action'):
+                fused_intent['action'] = voice_cmd['action']
+                confidence_contributions.append(('voice', voice_cmd['certainty'] * self.voice_weight))
+
+            if voice_cmd.get('target_object'):
+                fused_intent['target'] = voice_cmd['target_object']
+
+            if voice_cmd.get('target_location'):
+                fused_intent['location'] = voice_cmd['target_location']
+
+        # Fuse gesture data if available
+        if gesture_data:
+            gesture_action = gesture_data.get('intended_action')
+            if gesture_action and not fused_intent['action']:
+                # If no voice action, use gesture action
+                fused_intent['action'] = gesture_action
+            elif gesture_action and fused_intent['action']:
+                # If both exist, check if they agree or complement each other
+                if gesture_action != fused_intent['action']:
+                    fused_intent['action'] = self._resolve_conflicting_actions(
+                        fused_intent['action'], gesture_action
+                    )
+
+            gesture_certainty = gesture_data.get('confidence', 0.5)
+            confidence_contributions.append(('gesture', gesture_certainty * self.gesture_weight))
+
+        # Use visual context to enhance understanding
+        if visual_context:
+            # Adjust confidence based on visual context
+            if visual_context.get('people_detected', 0) > 0:
+                # Human present, interaction more likely
+                fused_intent['priority'] = 'high'
+
+            if 'person' not in fused_intent.get('target', ''):
+                # If no specific target from voice, use visual context
+                nearby_objects = visual_context.get('objects_in_scene', [])
+                if nearby_objects:
+                    fused_intent['target'] = nearby_objects[0]  # Use closest object as default
+
+            confidence_contributions.append(('visual', 0.7 * self.visual_context_weight))
+
+        # Calculate overall confidence
+        if confidence_contributions:
+            total_weight = sum(weight for _, weight in confidence_contributions)
+            weighted_confidence = sum(cert * weight for cert, weight in confidence_contributions) / total_weight
+            fused_intent['confidence'] = weighted_confidence
+        else:
+            fused_intent['confidence'] = 0.0
+
+        return fused_intent
+
+    def _resolve_conflicting_actions(self, voice_action: str, gesture_action: str) -> str:
+        """
+        Resolve conflicts between voice and gesture actions
+        """
+        # Define action relationships
+        action_relationships = {
+            'greet': ['wave', 'greeting_posture'],
+            'navigate': ['point', 'point_left', 'point_right', 'point_forward'],
+            'stop': ['stop_sign', 'attention_posture']
+        }
+
+        # Check if gesture supports voice action
+        if voice_action in action_relationships:
+            if gesture_action in action_relationships[voice_action]:
+                # Gesture reinforces voice action
+                return voice_action
+
+        # Check if voice supports gesture action
+        for voice_act, supported_gestures in action_relationships.items():
+            if voice_action == voice_act and gesture_action in supported_gestures:
+                return voice_action
+
+        # If no clear relationship, favor voice command (usually more specific)
+        return voice_action
+
+    def _generate_fused_response(self, fusion_result: Dict) -> str:
+        """
+        Generate response based on fused multi-modal input
+        """
+        fused_intent = fusion_result.get('fused_intent', {})
+        voice_interpretation = fusion_result.get('voice_interpretation')
+        gesture_interpretation = fusion_result.get('gesture_interpretation')
+
+        # Get contextual response based on user profile if available
+        if self.current_user_id:
+            response = self.social_context.get_contextual_response(
+                self.current_user_id, fused_intent
+            )
+        else:
+            # Use standard response generation
+            if fused_intent['action']:
+                action = fused_intent['action']
+                target = fused_intent.get('target', 'object')
+
+                if action == 'greet':
+                    response = "Hello! I noticed you through both your voice and gesture. How can I assist you?"
+                elif action == 'navigate':
+                    location = fused_intent.get('location', 'that direction')
+                    response = f"I'll navigate to {location}. I can see you're pointing in that direction."
+                elif action == 'stop':
+                    response = "I've stopped as requested. Both your voice command and gesture indicated I should stop."
+                else:
+                    response = f"I understand you want me to {action} the {target}. Combining your voice and gesture input."
+            else:
+                response = "I detected input from multiple modalities but couldn't determine a clear intent. Could you please clarify?"
+
+        return response
+
+    def handle_continuous_interaction(self, camera_feed, microphone_feed):
+        """
+        Handle continuous multi-modal interaction with human
+        """
+        print("Starting continuous interaction mode...")
+
+        try:
+            while True:
+                # Get current inputs
+                visual_frame = camera_feed.read() if camera_feed else None
+                audio_data = microphone_feed.read() if microphone_feed else None
+
+                # Process multi-modal input
+                result = self.process_multi_modal_input(
+                    audio_input=audio_data,
+                    visual_input=visual_frame
+                )
+
+                # Respond to human
+                if result['response']:
+                    print(f"Robot response: {result['response']}")
+
+                    # In a real system, this would trigger actual robot responses
+                    # self._execute_robot_response(result['response'])
+
+                # Update interaction state
+                self.interaction_turns += 1
+                self.last_interaction_time = result['timestamp']
+
+                # Simple delay to prevent excessive CPU usage
+                time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            print("\nContinuous interaction terminated by user.")
+
+        return self.interaction_turns
+
+class EmotionRecognitionSystem:
+    def __init__(self):
+        """
+        System for recognizing human emotions and adapting robot behavior
+        """
+        self.emotion_model = self._initialize_emotion_model()
+        self.emotion_mappings = {
+            'happy': ['smile', 'joy', 'pleased'],
+            'sad': ['frown', 'disappointed', 'upset'],
+            'angry': ['frown', 'frustrated', 'annoyed'],
+            'surprised': ['wide_eyes', 'raised_eyebrows'],
+            'neutral': ['relaxed', 'calm']
+        }
+
+        # Emotion-based behavior adaptations
+        self.behavior_adaptations = {
+            'happy': {
+                'response_tone': 'enthusiastic',
+                'gesture_frequency': 'high',
+                'interaction_speed': 'normal'
+            },
+            'sad': {
+                'response_tone': 'empathetic',
+                'gesture_frequency': 'low',
+                'interaction_speed': 'slow'
+            },
+            'angry': {
+                'response_tone': 'calm',
+                'gesture_frequency': 'low',
+                'interaction_speed': 'slow'
+            },
+            'surprised': {
+                'response_tone': 'attentive',
+                'gesture_frequency': 'medium',
+                'interaction_speed': 'normal'
+            },
+            'neutral': {
+                'response_tone': 'professional',
+                'gesture_frequency': 'medium',
+                'interaction_speed': 'normal'
+            }
+        }
+
+    def _initialize_emotion_model(self):
+        """
+        Initialize emotion recognition model
+        """
+        # In practice, this would load a facial expression recognition model
+        # For this example, return None (we'll use simple heuristics)
+        return None
+
+    def recognize_emotion(self, visual_data: np.ndarray) -> Dict:
+        """
+        Recognize emotion from facial expressions and body language
+        """
+        # This would use computer vision to detect facial expressions
+        # For this example, return a placeholder result
+        emotion_result = {
+            'dominant_emotion': 'neutral',
+            'emotion_confidence': 0.7,
+            'facial_features': {
+                'smile': 0.2,
+                'eyebrow_position': 0.5,
+                'eye_openness': 0.8
+            },
+            'body_language': {
+                'posture_relaxed': True,
+                'gestures_friendly': 0.6
+            },
+            'timestamp': time.time()
+        }
+
+        # In a real implementation, this would analyze:
+        # - Facial landmarks for expressions
+        # - Eye tracking for attention
+        # - Body posture for emotional indicators
+        # - Voice tone analysis if audio is available
+
+        return emotion_result
+
+    def adapt_behavior_to_emotion(self, emotion_data: Dict) -> Dict:
+        """
+        Adapt robot behavior based on recognized human emotion
+        """
+        emotion = emotion_data.get('dominant_emotion', 'neutral')
+
+        if emotion in self.behavior_adaptations:
+            adaptation = self.behavior_adaptations[emotion]
+            return {
+                'behavior_adjustment': adaptation,
+                'suggested_response_style': self._get_response_style_for_emotion(emotion),
+                'interaction_approach': self._get_interaction_approach_for_emotion(emotion)
+            }
+        else:
+            # Default to neutral behavior
+            return {
+                'behavior_adjustment': self.behavior_adaptations['neutral'],
+                'suggested_response_style': 'professional',
+                'interaction_approach': 'respectful'
+            }
+
+    def _get_response_style_for_emotion(self, emotion: str) -> str:
+        """
+        Get appropriate response style for the detected emotion
+        """
+        styles = {
+            'happy': 'warm and engaging',
+            'sad': 'supportive and gentle',
+            'angry': 'calming and non-threatening',
+            'surprised': 'acknowledging and informative',
+            'neutral': 'professional and clear'
+        }
+
+        return styles.get(emotion, 'professional and clear')
+
+    def _get_interaction_approach_for_emotion(self, emotion: str) -> str:
+        """
+        Get appropriate interaction approach for the detected emotion
+        """
+        approaches = {
+            'happy': 'interactive and enthusiastic',
+            'sad': 'respectful and patient',
+            'angry': 'careful and apologetic if needed',
+            'surprised': 'informative and reassuring',
+            'neutral': 'standard professional protocol'
+        }
+
+        return approaches.get(emotion, 'standard professional protocol')
+
+# Example usage
+interaction_manager = MultiModalInteractionManager()
+emotion_system = EmotionRecognitionSystem()
+
+# Example multi-modal input processing
+audio_input = np.random.rand(16000)  # Simulated audio
+visual_input = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)  # Simulated visual
+
+result = interaction_manager.process_multi_modal_input(
+    audio_input=audio_input,
+    visual_input=visual_input
+)
+
+print(f"Fused interpretation: {result['fused_intent']}")
+print(f"Response: {result['response']}")
+print(f"Confidence: {result['confidence']:.2f}")
+```
+
+## Implementation and Integration
+
+### HRI System Integration
+
+```python
+class HumanoidHRIIntegrator:
+    def __init__(self, robot_interface):
+        """
+        Integrate HRI system with humanoid robot control
+
+        Args:
+            robot_interface: Interface to the physical or simulated robot
+        """
+        self.robot_interface = robot_interface
+        self.multi_modal_manager = MultiModalInteractionManager()
+        self.emotion_system = EmotionRecognitionSystem()
+        self.social_rules = SocialRuleEngine()
+
+        # State tracking
+        self.current_interaction_state = 'idle'
+        self.interaction_history = []
+        self.user_engagement_level = 0.0
+
+    def start_interaction_loop(self):
+        """
+        Start the main interaction loop
+        """
+        print("Starting Human-Robot Interaction loop...")
+
+        try:
+            while True:
+                # Sense human presence and input
+                human_detected, input_data = self.sense_human_input()
+
+                if human_detected:
+                    # Process the interaction
+                    response = self.process_interaction(input_data)
+
+                    # Execute robot response
+                    self.execute_robot_response(response)
+
+                    # Update engagement level
+                    self.update_engagement_level(response)
+
+                else:
+                    # Robot goes to idle/ready state
+                    self.robot_interface.go_to_idle_pose()
+                    self.current_interaction_state = 'waiting_for_human'
+
+                # Small delay to prevent excessive CPU usage
+                time.sleep(0.1)
+
+        except KeyboardInterrupt:
+            print("\nInteraction loop terminated by user.")
+
+        return self.interaction_history
+
+    def sense_human_input(self) -> Tuple[bool, Dict]:
+        """
+        Sense for human input from multiple modalities
+        """
+        # This would interface with actual sensors
+        # For this example, we'll simulate sensor data
+
+        # Simulate camera input
+        camera_frame = self.robot_interface.get_camera_image()
+
+        # Simulate microphone input
+        audio_data = self.robot_interface.get_audio_input()
+
+        # Check if human is present in the scene
+        human_present = self.detect_human_presence(camera_frame)
+
+        if human_present:
+            input_data = {
+                'audio': audio_data,
+                'visual': camera_frame,
+                'timestamp': time.time()
+            }
+            return True, input_data
+        else:
+            return False, {}
+
+    def detect_human_presence(self, visual_data: np.ndarray) -> bool:
+        """
+        Detect if a human is present in the visual data
+        """
+        # This would use human detection algorithms
+        # For this example, return True to simulate human presence
+        return True
+
+    def process_interaction(self, input_data: Dict) -> Dict:
+        """
+        Process multi-modal human input and generate robot response
+        """
+        # Process multi-modal input
+        fusion_result = self.multi_modal_manager.process_multi_modal_input(
+            audio_input=input_data.get('audio'),
+            visual_input=input_data.get('visual')
+        )
+
+        # Recognize emotions if possible
+        emotion_data = self.emotion_system.recognize_emotion(input_data.get('visual'))
+
+        # Adapt behavior based on emotion
+        behavior_adaptation = self.emotion_system.adapt_behavior_to_emotion(emotion_data)
+
+        # Apply social rules
+        filtered_response = self.social_rules.apply_social_rules(
+            fusion_result['response'],
+            emotion_data,
+            self.current_interaction_state
+        )
+
+        # Create complete response package
+        response_package = {
+            'text_response': filtered_response,
+            'gesture_commands': self.generate_gesture_commands(fusion_result, emotion_data),
+            'motor_commands': self.generate_motor_commands(fusion_result),
+            'emotion_adaptation': behavior_adaptation,
+            'interaction_confidence': fusion_result['confidence'],
+            'timestamp': time.time()
+        }
+
+        # Update interaction history
+        self.interaction_history.append({
+            'input': input_data,
+            'fusion_result': fusion_result,
+            'emotion_data': emotion_data,
+            'response_package': response_package
+        })
+
+        return response_package
+
+    def generate_gesture_commands(self, fusion_result: Dict, emotion_data: Dict) -> List[Dict]:
+        """
+        Generate appropriate gesture commands based on interaction
+        """
+        gesture_commands = []
+
+        # Determine gesture type based on emotion and intent
+        emotion = emotion_data.get('dominant_emotion', 'neutral')
+        intent_action = fusion_result['fused_intent'].get('action', 'unknown')
+
+        if intent_action == 'greet':
+            gesture_commands.append({
+                'type': 'wave',
+                'intensity': 0.8,
+                'duration': 2.0
+            })
+        elif emotion == 'happy':
+            gesture_commands.append({
+                'type': 'nod',
+                'intensity': 0.7,
+                'duration': 1.0
+            })
+        elif emotion == 'sad':
+            gesture_commands.append({
+                'type': 'gentle_gesture',
+                'intensity': 0.4,
+                'duration': 1.5
+            })
+        elif intent_action == 'navigate':
+            gesture_commands.append({
+                'type': 'point_direction',
+                'intensity': 0.9,
+                'duration': 1.0
+            })
+
+        return gesture_commands
+
+    def generate_motor_commands(self, fusion_result: Dict) -> List[Dict]:
+        """
+        Generate motor commands for robot movement
+        """
+        motor_commands = []
+
+        intent = fusion_result['fused_intent']
+        action = intent.get('action')
+
+        if action == 'navigate':
+            # Generate navigation commands
+            target_location = intent.get('location', 'unknown')
+            motor_commands.append({
+                'command': 'navigate_to_location',
+                'target': target_location,
+                'priority': 2
+            })
+        elif action == 'greet':
+            # Generate greeting movement
+            motor_commands.append({
+                'command': 'move_to_greeting_pose',
+                'parameters': {'arm_position': 'friendly_wave'},
+                'priority': 1
+            })
+        elif action == 'approach':
+            # Generate approach command
+            motor_commands.append({
+                'command': 'approach_human',
+                'parameters': {'safe_distance': 0.8},
+                'priority': 2
+            })
+        elif action == 'stop':
+            # Generate stop command
+            motor_commands.append({
+                'command': 'stop_all_motors',
+                'priority': 4  # High priority for safety
+            })
+
+        return motor_commands
+
+    def execute_robot_response(self, response_package: Dict):
+        """
+        Execute the robot's response to human input
+        """
+        # Execute verbal response
+        if response_package.get('text_response'):
+            self.robot_interface.speak(response_package['text_response'])
+
+        # Execute gesture commands
+        for gesture_cmd in response_package.get('gesture_commands', []):
+            self.robot_interface.execute_gesture(gesture_cmd)
+
+        # Execute motor commands
+        for motor_cmd in response_package.get('motor_commands', []):
+            self.robot_interface.execute_motor_command(motor_cmd)
+
+        # Update interaction state
+        self.current_interaction_state = 'responding'
+
+    def update_engagement_level(self, response: Dict):
+        """
+        Update the engagement level based on interaction quality
+        """
+        confidence = response.get('interaction_confidence', 0.5)
+        emotion_positive = response.get('emotion_adaptation', {}).get('behavior_adjustment', {}).get('response_tone') in ['enthusiastic', 'warm']
+
+        # Calculate engagement level
+        engagement = 0.4  # Base level
+        engagement += 0.4 * confidence  # Based on interaction confidence
+        if emotion_positive:
+            engagement += 0.2  # Boost for positive emotion adaptation
+
+        self.user_engagement_level = min(1.0, engagement)
+
+class SocialRuleEngine:
+    def __init__(self):
+        """
+        Engine to apply social rules to robot responses
+        """
+        self.social_rules = {
+            'personal_space': {
+                'minimum_distance': 0.8,  # meters
+                'violation_response': 'maintain_respectful_distance'
+            },
+            'greeting_protocol': {
+                'eye_contact_duration': (0.5, 3.0),  # seconds
+                'greeting_delay': 0.5  # seconds after detection
+            },
+            'politeness_rules': {
+                'use_please': True,
+                'acknowledge_thanks': True,
+                'offer_help_proactively': False
+            },
+            'attention_management': {
+                'focus_shift_delay': 0.3,  # seconds before shifting attention
+                'multi_person_handling': 'first_come_first_serve'
+            }
+        }
+
+    def apply_social_rules(self, response: str, emotion_data: Dict,
+                          current_state: str) -> str:
+        """
+        Apply social rules to filter/modify robot response
+        """
+        # Apply politeness rules
+        response = self._apply_politeness_rules(response)
+
+        # Adjust for emotional state
+        response = self._adjust_for_emotional_state(response, emotion_data)
+
+        # Apply cultural/contextual rules
+        response = self._apply_cultural_rules(response, current_state)
+
+        return response
+
+    def _apply_politeness_rules(self, response: str) -> str:
+        """
+        Apply politeness rules to the response
+        """
+        # Add polite phrases where appropriate
+        if any(word in response.lower() for word in ['can you', 'could you', 'would you']):
+            if 'please' not in response.lower():
+                # Add please to the response
+                response = response.replace('Can you', 'Can you please').replace('could you', 'could you please')
+
+        return response
+
+    def _adjust_for_emotional_state(self, response: str, emotion_data: Dict) -> str:
+        """
+        Adjust response based on human's emotional state
+        """
+        emotion = emotion_data.get('dominant_emotion', 'neutral')
+
+        if emotion == 'sad':
+            # Use more empathetic language
+            response = response.replace('Okay', 'I understand').replace('Sure', 'I\'d be happy to help')
+        elif emotion == 'angry':
+            # Use calming language
+            response = response.replace('But', 'However').replace('However', 'I understand your concern, however')
+        elif emotion == 'happy':
+            # Use more enthusiastic language
+            response = response.replace('Okay', 'Great!').replace('Sure', 'Absolutely!')
+
+        return response
+
+    def _apply_cultural_rules(self, response: str, current_state: str) -> str:
+        """
+        Apply cultural or contextual rules to the response
+        """
+        # This would implement culture-specific interaction rules
+        # For now, return response unchanged
+        return response
+
+# Example usage (with simulated robot interface)
+class SimulatedRobotInterface:
+    def get_camera_image(self):
+        return np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)
+
+    def get_audio_input(self):
+        return np.random.rand(16000)
+
+    def speak(self, text: str):
+        print(f"Robot says: {text}")
+
+    def execute_gesture(self, gesture_cmd: Dict):
+        print(f"Robot performs gesture: {gesture_cmd['type']}")
+
+    def execute_motor_command(self, motor_cmd: Dict):
+        print(f"Robot executes motor command: {motor_cmd['command']}")
+
+    def go_to_idle_pose(self):
+        print("Robot going to idle pose")
+
+# Create the integration
+robot_interface = SimulatedRobotInterface()
+hri_integrator = HumanoidHRIIntegrator(robot_interface)
+
+# Example interaction processing
+sample_input = {
+    'audio': np.random.rand(16000),
+    'visual': np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8),
+    'timestamp': time.time()
+}
+
+response = hri_integrator.process_interaction(sample_input)
+print(f"Generated response package: {response}")
+```
+
+## Best Practices and Guidelines
+
+### HRI Best Practices
+
+1. **Natural Interaction**: Design interfaces that feel natural to humans
+2. **Context Awareness**: Consider social and environmental context in responses
+3. **Safety First**: Always prioritize human safety in interaction decisions
+4. **Privacy Respect**: Protect user privacy and data during interactions
+5. **Cultural Sensitivity**: Adapt to cultural norms and expectations
+6. **Accessibility**: Ensure interactions are accessible to all users
+
+### Troubleshooting Common Issues
+
+```python
+class HRITroubleshooter:
+    def __init__(self):
+        self.common_issues = {
+            'recognition_failure': self.troubleshoot_recognition_failure,
+            'response_delay': self.troubleshoot_response_delay,
+            'social_norm_violation': self.troubleshoot_social_norm_violation,
+            'multi_modal_conflict': self.troubleshoot_multi_modal_conflict,
+            'engagement_degradation': self.troubleshoot_engagement_degradation
+        }
+
+    def troubleshoot_recognition_failure(self):
+        """
+        Troubleshoot speech or gesture recognition failures
+        """
+        fixes = [
+            "Check microphone and camera positioning",
+            "Verify adequate lighting conditions for visual recognition",
+            "Adjust speech recognition sensitivity thresholds",
+            "Validate gesture recognition model accuracy",
+            "Test individual modalities separately to isolate issues"
+        ]
+        return fixes
+
+    def troubleshoot_response_delay(self):
+        """
+        Troubleshoot delayed responses in human-robot interaction
+        """
+        fixes = [
+            "Optimize processing pipelines for real-time performance",
+            "Reduce computational complexity of recognition models",
+            "Implement parallel processing for different modalities",
+            "Use lightweight models for real-time applications",
+            "Check for bottlenecks in sensor data acquisition"
+        ]
+        return fixes
+
+    def troubleshoot_social_norm_violation(self):
+        """
+        Troubleshoot violations of social interaction norms
+        """
+        fixes = [
+            "Review and update social rule database",
+            "Adjust personal space maintenance parameters",
+            "Modify greeting and attention protocols",
+            "Calibrate response timing to cultural expectations",
+            "Implement cultural adaptation mechanisms"
+        ]
+        return fixes
+
+    def troubleshoot_multi_modal_conflict(self):
+        """
+        Troubleshoot conflicts between different modalities
+        """
+        fixes = [
+            "Implement better modality fusion algorithms",
+            "Adjust confidence thresholds for each modality",
+            "Add temporal alignment between modalities",
+            "Create conflict resolution strategies",
+            "Validate sensor synchronization"
+        ]
+        return fixes
+
+    def troubleshoot_engagement_degradation(self):
+        """
+        Troubleshoot declining user engagement over time
+        """
+        fixes = [
+            "Implement varied response patterns to avoid repetition",
+            "Add personality traits to robot behavior",
+            "Adjust interaction complexity based on user feedback",
+            "Implement user preference learning",
+            "Provide feedback on robot's understanding"
+        ]
+        return fixes
+
+    def run_diagnostic(self, issue_type: str) -> List[str]:
+        """
+        Run diagnostic for specific issue type
+        """
+        if issue_type in self.common_issues:
+            return self.common_issues[issue_type]()
+        else:
+            return ["Issue type not recognized"]
+
+# Example usage
+troubleshooter = HRITroubleshooter()
+recognition_fixes = troubleshooter.run_diagnostic('recognition_failure')
+print(f"Recognition troubleshooting fixes: {recognition_fixes}")
+```
+
+## Summary
+
+Human-Robot Interaction systems for humanoid robots require sophisticated integration of multiple modalities including speech, vision, and gesture recognition. This chapter covered the implementation of natural language processing for command understanding, gesture recognition systems for non-verbal communication, and emotion recognition for adaptive behavior. The multi-modal fusion approach enables robots to understand complex human intentions by combining information from different input channels. Social rule engines ensure that robot responses follow appropriate social norms and cultural expectations. Proper validation and troubleshooting approaches ensure that HRI systems remain reliable and effective in diverse operating conditions.
+
+## Exercises
+
+1. Implement a multi-modal attention system that tracks human focus during interaction
+2. Design an emotion recognition system that adapts robot behavior in real-time
+3. Create a gesture vocabulary specific to humanoid robot control commands
+4. Develop a social rule engine that adapts to different cultural contexts
+5. Validate HRI system performance across diverse user populations

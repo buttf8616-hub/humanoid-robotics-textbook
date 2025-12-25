@@ -1,0 +1,37 @@
+{
+  "id": "modules/module-5/chapter-1-vision-language-action-fundamentals",
+  "title": "Chapter 1: Vision-Language-Action Fundamentals",
+  "description": "Foundational concepts of vision-language-action systems for humanoid robots",
+  "source": "@site/docs/modules/module-5/chapter-1-vision-language-action-fundamentals.mdx",
+  "sourceDirName": "modules/module-5",
+  "slug": "/modules/module-5/chapter-1-vision-language-action-fundamentals",
+  "permalink": "/modules/module-5/chapter-1-vision-language-action-fundamentals",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-5/chapter-1-vision-language-action-fundamentals.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 1,
+  "frontMatter": {
+    "title": "Chapter 1: Vision-Language-Action Fundamentals",
+    "description": "Foundational concepts of vision-language-action systems for humanoid robots",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Vision-Language-Action",
+      "VLA",
+      "Humanoid Robotics",
+      "Multimodal Learning",
+      "Human-Robot Interaction"
+    ],
+    "sidebar_position": 1
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 3: AI Perception and Decision Making",
+    "permalink": "/modules/module-4/chapter-3-ai-perception-decision-making"
+  },
+  "next": {
+    "title": "Chapter 2: Multimodal Learning for Robotics",
+    "permalink": "/modules/module-5/chapter-2-multimodal-learning-for-robotics"
+  }
+}

@@ -1,0 +1,38 @@
+{
+  "id": "modules/module-4/chapter-3-ai-perception-decision-making",
+  "title": "Chapter 3: AI Perception and Decision Making",
+  "description": "Vision-language-action systems and cognitive planning for humanoid robots",
+  "source": "@site/docs/modules/module-4/chapter-3-ai-perception-decision-making.mdx",
+  "sourceDirName": "modules/module-4",
+  "slug": "/modules/module-4/chapter-3-ai-perception-decision-making",
+  "permalink": "/modules/module-4/chapter-3-ai-perception-decision-making",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-4/chapter-3-ai-perception-decision-making.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "title": "Chapter 3: AI Perception and Decision Making",
+    "description": "Vision-language-action systems and cognitive planning for humanoid robots",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "AI Perception",
+      "Decision Making",
+      "Vision-Language-Action",
+      "Cognitive Planning",
+      "Humanoid Robotics",
+      "Machine Learning"
+    ],
+    "sidebar_position": 3
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 2: Visual SLAM and Navigation",
+    "permalink": "/modules/module-4/chapter-2-visual-slam-navigation"
+  },
+  "next": {
+    "title": "Chapter 1: Vision-Language-Action Fundamentals",
+    "permalink": "/modules/module-5/chapter-1-vision-language-action-fundamentals"
+  }
+}

@@ -1,55 +1,51 @@
-# [PROJECT_NAME] Constitution
-<!-- Example: Spec Constitution, TaskFlow Constitution, etc. -->
+<!-- SYNC IMPACT REPORT
+Version change: N/A (initial version) → 1.0.0
+Modified principles: N/A
+Added sections: All principles and sections (initial constitution)
+Removed sections: N/A
+Templates requiring updates:
+- .specify/templates/plan-template.md: ⚠ pending
+- .specify/templates/spec-template.md: ⚠ pending
+- .specify/templates/tasks-template.md: ⚠ pending
+- .specify/commands/sp.constitution.md: ⚠ pending
+Follow-up TODOs: None
+-->
+# AI/Spec-Driven Technical Book Creation Constitution
 
 ## Core Principles
 
-### [PRINCIPLE_1_NAME]
-<!-- Example: I. Library-First -->
-[PRINCIPLE_1_DESCRIPTION]
-<!-- Example: Every feature starts as a standalone library; Libraries must be self-contained, independently testable, documented; Clear purpose required - no organizational-only libraries -->
+### I. Spec-First Development
+All book structure, chapters, workflows, and content must originate from explicit specifications: /sp.constitution, /sp.specify, /sp.plan, /sp.tasks. No documentation content may exist without a corresponding specification.
 
-### [PRINCIPLE_2_NAME]
-<!-- Example: II. CLI Interface -->
-[PRINCIPLE_2_DESCRIPTION]
-<!-- Example: Every library exposes functionality via CLI; Text in/out protocol: stdin/args → stdout, errors → stderr; Support JSON + human-readable formats -->
+### II. AI-Assisted, Human-Directed
+Claude Code is used to draft, refactor, summarize, and validate content. Human intent, specifications, and acceptance criteria always override AI-generated output.
 
-### [PRINCIPLE_3_NAME]
-<!-- Example: III. Test-First (NON-NEGOTIABLE) -->
-[PRINCIPLE_3_DESCRIPTION]
-<!-- Example: TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced -->
+### III. Source-Grounded Content
+All technical explanations must be grounded in official Docusaurus documentation and verified references accessed via Context7 MCP. Hallucinated, speculative, or unverified information is strictly prohibited.
 
-### [PRINCIPLE_4_NAME]
-<!-- Example: IV. Integration Testing -->
-[PRINCIPLE_4_DESCRIPTION]
-<!-- Example: Focus areas requiring integration tests: New library contract tests, Contract changes, Inter-service communication, Shared schemas -->
+### IV. Modular & Maintainable Documentation
+The book must follow Docusaurus best practices: clear sidebar-based navigation, modular Markdown / MDX files, logical chapter separation, consistent formatting and tone.
 
-### [PRINCIPLE_5_NAME]
-<!-- Example: V. Observability, VI. Versioning & Breaking Changes, VII. Simplicity -->
-[PRINCIPLE_5_DESCRIPTION]
-<!-- Example: Text I/O ensures debuggability; Structured logging required; Or: MAJOR.MINOR.BUILD format; Or: Start simple, YAGNI principles -->
+### V. Reproducibility & Transparency
+Any developer should be able to clone the repository, review the specs, regenerate the book, and build and redeploy the site using the same workflow.
 
-### [PRINCIPLE_6_NAME]
+### VI. Test-First (NON-NEGOTIABLE)
+TDD mandatory: Tests written → User approved → Tests fail → Then implement; Red-Green-Refactor cycle strictly enforced for all code components and book generation processes.
 
+## Additional Constraints
 
-[PRINCIPLE__DESCRIPTION]
+Technology stack requirements: Docusaurus framework, Markdown/MDX content format, GitHub Pages deployment, Context7 MCP for verified documentation sources, Spec-Kit Plus for specifications.
 
-## [SECTION_2_NAME]
-<!-- Example: Additional Constraints, Security Requirements, Performance Standards, etc. -->
+Deployment policies: All changes must be validated through automated checks before merging. Public deployment to GitHub Pages requires successful build validation.
 
-[SECTION_2_CONTENT]
-<!-- Example: Technology stack requirements, compliance standards, deployment policies, etc. -->
+## Development Workflow
 
-## [SECTION_3_NAME]
-<!-- Example: Development Workflow, Review Process, Quality Gates, etc. -->
+Code review requirements: All PRs must verify compliance with specifications and constitution principles. Changes to book content must include appropriate acceptance criteria validation.
 
-[SECTION_3_CONTENT]
-<!-- Example: Code review requirements, testing gates, deployment approval process, etc. -->
+Quality gates: All technical content must be source-grounded, specifications must be updated when implementing new features, and Prompt History Records (PHRs) must be created for all significant development activities.
 
 ## Governance
-<!-- Example: Constitution supersedes all other practices; Amendments require documentation, approval, migration plan -->
 
-[GOVERNANCE_RULES]
-<!-- Example: All PRs/reviews must verify compliance; Complexity must be justified; Use [GUIDANCE_FILE] for runtime development guidance -->
+The constitution supersedes all other practices. Amendments require documentation, approval, and migration plan when applicable. All PRs/reviews must verify compliance with constitution principles.
 
-**Version**: [CONSTITUTION_VERSION] | **Ratified**: [RATIFICATION_DATE] | **Last Amended**: [LAST_AMENDED_DATE]
-<!-- Example: Version: 2.1.1 | Ratified: 2025-06-13 | Last Amended: 2025-07-16 -->
+**Version**: 1.0.0 | **Ratified**: 2025-12-24 | **Last Amended**: 2025-12-24
