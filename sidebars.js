@@ -7,7 +7,7 @@ module.exports = {
         'intro',
         {
           type: 'category',
-          label: 'Module 1: Physical AI Fundamentals Book Structure',
+          label: 'Physical AI Fundamentals Book Structure',
           items: [
             'modules/module-1/chapter-1-introduction-to-physical-ai',
             'modules/module-1/chapter-2-embodied-intelligence-principles',
@@ -16,7 +16,7 @@ module.exports = {
         },
         {
           type: 'category',
-          label: 'Module 2: ROS 2 Robotic Nervous System Content',
+          label: 'Module 1: ROS 2 Robotic Nervous System',
           items: [
             'modules/module-2/chapter-1-ros2-architecture-fundamentals',
             'modules/module-2/chapter-2-communication-patterns',
@@ -25,7 +25,7 @@ module.exports = {
         },
         {
           type: 'category',
-          label: 'Module 3: Simulation Environment Content',
+          label: 'Module 2: Simulation Environment',
           items: [
             'modules/module-3/chapter-1-gazebo-simulation-environments',
             'modules/module-3/chapter-2-unity-robotics-integration',
@@ -34,7 +34,7 @@ module.exports = {
         },
         {
           type: 'category',
-          label: 'Module 4: NVIDIA Isaac AI Integration Content',
+          label: 'Module 3: Isaac Sim AI Integration',
           items: [
             'modules/module-4/chapter-1-isaac-sim-synthetic-data',
             'modules/module-4/chapter-2-visual-slam-navigation',
@@ -43,7 +43,7 @@ module.exports = {
         },
         {
           type: 'category',
-          label: 'Module 5: Vision-Language-Action Integration Content',
+          label: 'Module 4: Vision-Language-Action Integration',
           items: [
             'modules/module-5/chapter-1-vision-language-action-fundamentals',
             'modules/module-5/chapter-2-multimodal-learning-for-robotics',
