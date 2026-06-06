@@ -4,7 +4,6 @@ from datetime import datetime
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from src.api.routes import router
 from src.api.auth_routes import auth_router
 from src.api.content_routes import content_router
 from src.db.database import init_db
@@ -28,7 +27,6 @@ app.add_middleware(
 init_db()
 
 # Register API routes
-app.include_router(router, prefix="/api/v1", tags=["ingestion"])
 app.include_router(auth_router, prefix="/api/v1")
 app.include_router(content_router, prefix="/api/v1")
 
