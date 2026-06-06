@@ -123,11 +123,17 @@ html[data-theme='dark'] .theme-last-updated {
 }
 
 /* ============================================
-   Global
+   Global — force dark theme as default
    ============================================ */
+html {
+  color-scheme: dark;
+}
+
 body {
   font-family: 'Exo 2', system-ui, sans-serif;
   -webkit-font-smoothing: antialiased;
+  background-color: #000000;
+  color: #ffffff;
 }
 
 html[data-theme='dark'] body {

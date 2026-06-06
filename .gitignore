@@ -28,6 +28,12 @@ coverage/
 tmp/
 temp/
 
+# Docusaurus generated cache
+.docusaurus/
+
+# SQLite database (contains user data — never commit)
+backend/data/
+
 # Environment variables
 .env*
 !.env.example

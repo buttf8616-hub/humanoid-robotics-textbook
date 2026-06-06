@@ -57,5 +57,8 @@ class Settings(BaseSettings):
     agent_timeout_seconds: int = 30
     agent_max_conversation_turns: int = 10
 
+    # JWT authentication
+    jwt_secret: str = "change-me-in-production-use-a-long-random-string"
+
 
 settings = Settings()

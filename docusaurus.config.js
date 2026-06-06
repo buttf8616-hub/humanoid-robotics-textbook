@@ -116,6 +116,11 @@ require('dotenv').config();
         ],
         copyright: `Copyright © ${new Date().getFullYear()} Physical AI & Humanoid Robotics Book, Inc. Built with Docusaurus.`,
       },
+      colorMode: {
+        defaultMode: 'dark',
+        disableSwitch: false,
+        respectPrefersColorScheme: false,
+      },
       prism: {
         theme: lightCodeTheme,
         darkTheme: darkCodeTheme,
