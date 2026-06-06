@@ -1,0 +1,43 @@
+{
+  "title": "Introduction to Docusaurus",
+  "description": "A comprehensive guide to getting started with Docusaurus",
+  "author": "Technical Writer",
+  "topics": [
+    {
+      "id": "intro-docusaurus",
+      "title": "Getting Started with Docusaurus",
+      "description": "Introduction to the Docusaurus framework and its core concepts",
+      "learningObjectives": [
+        "Understand what Docusaurus is",
+        "Learn the benefits of using Docusaurus",
+        "Identify common use cases"
+      ],
+      "prerequisites": [],
+      "category": "Fundamentals"
+    },
+    {
+      "id": "setup-installation",
+      "title": "Setting up Docusaurus",
+      "description": "How to install and initialize a Docusaurus project",
+      "learningObjectives": [
+        "Install Docusaurus using npm",
+        "Initialize a new Docusaurus project",
+        "Understand the project structure"
+      ],
+      "prerequisites": ["intro-docusaurus"],
+      "category": "Setup"
+    },
+    {
+      "id": "markdown-basics",
+      "title": "Markdown and MDX Basics",
+      "description": "Learn how to create content using Markdown and MDX in Docusaurus",
+      "learningObjectives": [
+        "Write content using Markdown syntax",
+        "Use MDX components in documentation",
+        "Create headings, lists, and links"
+      ],
+      "prerequisites": ["setup-installation"],
+      "category": "Content Creation"
+    }
+  ]
+}

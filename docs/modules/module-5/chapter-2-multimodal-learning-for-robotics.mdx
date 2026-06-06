@@ -1,0 +1,2223 @@
+---
+title: "Chapter 2: Multimodal Learning for Robotics"
+description: "Advanced multimodal learning techniques for humanoid robot perception and control"
+hide_table_of_contents: false
+keywords: ["Multimodal Learning", "Robotics", "Humanoid Robots", "Vision-Language Models", "Embodied AI", "Sensor Fusion"]
+sidebar_position: 2
+---
+
+# Chapter 2: Multimodal Learning for Robotics
+
+## Learning Objectives
+- Understand multimodal learning principles for humanoid robotics
+- Implement vision-language models for robot perception
+- Design sensor fusion architectures for multimodal integration
+- Apply transformer-based models for multimodal reasoning
+- Create embodied learning systems for humanoid robots
+
+## Introduction to Multimodal Learning
+
+Multimodal learning is a critical component of modern humanoid robotics, enabling robots to process and integrate information from multiple sensory modalities simultaneously. Unlike unimodal systems that process each sensor stream independently, multimodal learning systems create unified representations that capture the relationships between different modalities, leading to more robust and intelligent robot behavior.
+
+### Core Principles of Multimodal Learning
+
+Multimodal learning for humanoid robots is built on several core principles:
+
+1. **Cross-Modal Alignment**: Establishing correspondences between different modalities (e.g., matching visual objects with linguistic descriptions)
+2. **Fusion Strategies**: Combining information from multiple modalities at different levels (early, late, or intermediate fusion)
+3. **Embodied Learning**: Learning representations that connect sensory inputs with motor outputs and environmental interactions
+4. **Context Integration**: Incorporating temporal and spatial context for more informed decisions
+
+```python
+import torch
+import torch.nn as nn
+import torch.nn.functional as F
+import numpy as np
+from transformers import CLIPModel, CLIPProcessor
+from typing import Dict, List, Tuple, Optional
+import math
+
+class MultimodalEncoder:
+    def __init__(self, vision_dim: int = 512, language_dim: int = 512,
+                 audio_dim: int = 256, fusion_dim: int = 768):
+        """
+        Encoder for multiple modalities in humanoid robotics
+
+        Args:
+            vision_dim: Dimension of visual features
+            language_dim: Dimension of language features
+            audio_dim: Dimension of audio features
+            fusion_dim: Dimension of fused multimodal features
+        """
+        self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+        # Individual modality encoders
+        self.vision_encoder = VisionEncoder(vision_dim)
+        self.language_encoder = LanguageEncoder(language_dim)
+        self.audio_encoder = AudioEncoder(audio_dim)
+
+        # Cross-modal attention modules
+        self.vision_language_attention = CrossModalAttention(vision_dim, language_dim, fusion_dim)
+        self.vision_audio_attention = CrossModalAttention(vision_dim, audio_dim, fusion_dim)
+        self.language_audio_attention = CrossModalAttention(language_dim, audio_dim, fusion_dim)
+
+        # Multimodal fusion network
+        self.fusion_network = MultimodalFusionNetwork(
+            input_dims=[vision_dim, language_dim, audio_dim],
+            output_dim=fusion_dim
+        )
+
+        # Normalization layers
+        self.vision_norm = nn.LayerNorm(vision_dim)
+        self.language_norm = nn.LayerNorm(language_dim)
+        self.audio_norm = nn.LayerNorm(audio_dim)
+        self.fusion_norm = nn.LayerNorm(fusion_dim)
+
+    def encode_multimodal(self, vision_input: torch.Tensor,
+                         language_input: torch.Tensor,
+                         audio_input: Optional[torch.Tensor] = None) -> Dict:
+        """
+        Encode inputs from multiple modalities and create fused representation
+
+        Args:
+            vision_input: Visual input tensor (e.g., image features)
+            language_input: Language input tensor (e.g., text embeddings)
+            audio_input: Audio input tensor (optional)
+
+        Returns:
+            Dictionary containing encoded features and fused representation
+        """
+        # Encode individual modalities
+        vision_features = self.vision_encoder(vision_input)
+        language_features = self.language_encoder(language_input)
+
+        # Apply normalization
+        vision_features = self.vision_norm(vision_features)
+        language_features = self.language_norm(language_features)
+
+        # Cross-modal attention
+        vision_lang_features = self.vision_language_attention(
+            vision_features, language_features
+        )
+
+        # If audio is provided, process it as well
+        if audio_input is not None:
+            audio_features = self.audio_encoder(audio_input)
+            audio_features = self.audio_norm(audio_features)
+
+            # Cross-modal attention with audio
+            vision_audio_features = self.vision_audio_attention(
+                vision_features, audio_features
+            )
+            lang_audio_features = self.language_audio_attention(
+                language_features, audio_features
+            )
+
+            # Final fusion with all modalities
+            fused_features = self.fusion_network([
+                vision_lang_features,
+                lang_audio_features,
+                vision_audio_features
+            ])
+        else:
+            # Fusion without audio
+            fused_features = self.fusion_network([
+                vision_lang_features,
+                language_features
+            ])
+
+        # Apply final normalization
+        fused_features = self.fusion_norm(fused_features)
+
+        return {
+            'vision_features': vision_features,
+            'language_features': language_features,
+            'audio_features': audio_features if audio_input is not None else None,
+            'fused_features': fused_features,
+            'cross_modal_alignments': {
+                'vision_language': vision_lang_features,
+                'vision_audio': vision_audio_features if audio_input is not None else None,
+                'language_audio': lang_audio_features if audio_input is not None else None
+            }
+        }
+
+class VisionEncoder(nn.Module):
+    def __init__(self, output_dim: int = 512):
+        """
+        Vision encoder using CNN or Vision Transformer
+        """
+        super(VisionEncoder, self).__init__()
+
+        # Using a simplified CNN structure as an example
+        # In practice, this could be a pre-trained model like ResNet or ViT
+        self.conv_layers = nn.Sequential(
+            nn.Conv2d(3, 64, kernel_size=7, stride=2, padding=3),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(64, 128, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.MaxPool2d(kernel_size=3, stride=2, padding=1),
+            nn.Conv2d(128, 256, kernel_size=3, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool2d((1, 1))
+        )
+
+        self.projection = nn.Linear(256, output_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for vision encoding
+        """
+        if len(x.shape) == 4:  # Image batch
+            batch_size = x.shape[0]
+            x = self.conv_layers(x)
+            x = x.view(batch_size, -1)  # Flatten
+        else:
+            # Already flattened features
+            x = x
+
+        # Project to output dimension
+        features = self.projection(x)
+
+        # Apply layer normalization
+        features = F.normalize(features, p=2, dim=-1)
+
+        return features
+
+class LanguageEncoder(nn.Module):
+    def __init__(self, output_dim: int = 512):
+        """
+        Language encoder using transformer-based model
+        """
+        super(LanguageEncoder, self).__init__()
+
+        # In practice, this would use a pre-trained model like BERT, RoBERTa, or CLIP text encoder
+        self.embedding = nn.Embedding(30522, 256)  # Using vocab size similar to BERT
+        self.transformer = nn.TransformerEncoder(
+            nn.TransformerEncoderLayer(d_model=256, nhead=8),
+            num_layers=6
+        )
+        self.projection = nn.Linear(256, output_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for language encoding
+        """
+        # x is assumed to be tokenized text (batch_size, seq_len)
+        embedded = self.embedding(x)
+
+        # Apply transformer
+        transformed = self.transformer(embedded.transpose(0, 1)).transpose(0, 1)
+
+        # Global average pooling to get fixed-size representation
+        pooled = torch.mean(transformed, dim=1)
+
+        # Project to output dimension
+        features = self.projection(pooled)
+
+        # Apply normalization
+        features = F.normalize(features, p=2, dim=-1)
+
+        return features
+
+class AudioEncoder(nn.Module):
+    def __init__(self, output_dim: int = 256):
+        """
+        Audio encoder for sound processing
+        """
+        super(AudioEncoder, self).__init__()
+
+        # Simplified audio processing - in practice, this would use models like Audio Spectrogram Transformer
+        self.conv_layers = nn.Sequential(
+            nn.Conv1d(1, 64, kernel_size=8, stride=4, padding=2),
+            nn.ReLU(),
+            nn.Conv1d(64, 128, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.Conv1d(128, 256, kernel_size=4, stride=2, padding=1),
+            nn.ReLU(),
+            nn.AdaptiveAvgPool1d(1)
+        )
+
+        self.projection = nn.Linear(256, output_dim)
+
+    def forward(self, x: torch.Tensor) -> torch.Tensor:
+        """
+        Forward pass for audio encoding
+        """
+        # x is assumed to be audio signal (batch_size, seq_len) or spectrogram
+        if len(x.shape) == 2:  # Raw audio
+            x = x.unsqueeze(1)  # Add channel dimension
+
+        x = self.conv_layers(x)
+        x = x.squeeze(-1)  # Remove sequence dimension after pooling
+
+        # Project to output dimension
+        features = self.projection(x)
+
+        # Apply normalization
+        features = F.normalize(features, p=2, dim=-1)
+
+        return features
+
+class CrossModalAttention(nn.Module):
+    def __init__(self, dim1: int, dim2: int, output_dim: int):
+        """
+        Cross-modal attention mechanism
+        """
+        super(CrossModalAttention, self).__init__()
+
+        self.dim1 = dim1
+        self.dim2 = dim2
+        self.output_dim = output_dim
+
+        # Linear projections for query, key, value
+        self.q_proj = nn.Linear(dim1, output_dim)
+        self.k_proj = nn.Linear(dim2, output_dim)
+        self.v_proj = nn.Linear(dim2, output_dim)
+
+        # Output projection
+        self.out_proj = nn.Linear(output_dim, output_dim)
+
+        # Multi-head attention parameters
+        self.num_heads = 8
+        self.head_dim = output_dim // self.num_heads
+
+        assert output_dim % self.num_heads == 0, "output_dim must be divisible by num_heads"
+
+    def forward(self, modality1: torch.Tensor, modality2: torch.Tensor) -> torch.Tensor:
+        """
+        Apply cross-modal attention between two modalities
+        """
+        batch_size = modality1.shape[0]
+
+        # Project modalities
+        Q = self.q_proj(modality1).view(batch_size, self.num_heads, -1, self.head_dim)
+        K = self.k_proj(modality2).view(batch_size, self.num_heads, -1, self.head_dim)
+        V = self.v_proj(modality2).view(batch_size, self.num_heads, -1, self.head_dim)
+
+        # Compute attention scores
+        scores = torch.matmul(Q, K.transpose(-2, -1)) / math.sqrt(self.head_dim)
+        attention_weights = F.softmax(scores, dim=-1)
+
+        # Apply attention to values
+        attended = torch.matmul(attention_weights, V)
+        attended = attended.view(batch_size, -1, self.output_dim)
+
+        # Apply output projection
+        output = self.out_proj(attended.squeeze(1) if attended.shape[1] == 1 else attended)
+
+        return output
+
+class MultimodalFusionNetwork(nn.Module):
+    def __init__(self, input_dims: List[int], output_dim: int):
+        """
+        Network to fuse features from multiple modalities
+        """
+        super(MultimodalFusionNetwork, self).__init__()
+
+        self.input_dims = input_dims
+        self.output_dim = output_dim
+
+        # Calculate total input dimension
+        total_input_dim = sum(input_dims)
+
+        # Fusion layers
+        self.fusion_layers = nn.Sequential(
+            nn.Linear(total_input_dim, output_dim * 2),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(output_dim * 2, output_dim),
+            nn.ReLU(),
+            nn.Dropout(0.1),
+            nn.Linear(output_dim, output_dim)
+        )
+
+    def forward(self, modalities: List[torch.Tensor]) -> torch.Tensor:
+        """
+        Fuse features from multiple modalities
+        """
+        # Concatenate all modalities
+        fused_input = torch.cat(modalities, dim=-1)
+
+        # Apply fusion network
+        fused_output = self.fusion_layers(fused_input)
+
+        # Apply normalization
+        fused_output = F.normalize(fused_output, p=2, dim=-1)
+
+        return fused_output
+
+# Example usage
+multimodal_encoder = MultimodalEncoder()
+
+# Example inputs (these would come from actual sensors in a real system)
+vision_input = torch.randn(1, 3, 224, 224)  # Batch of images
+language_input = torch.randint(0, 1000, (1, 50))  # Tokenized text
+audio_input = torch.randn(1, 16000)  # Audio signal
+
+# Encode multimodal inputs
+encoding_result = multimodal_encoder.encode_multimodal(
+    vision_input, language_input, audio_input
+)
+
+print(f"Fused features shape: {encoding_result['fused_features'].shape}")
+```
+
+### Transformer-Based Multimodal Models
+
+```python
+class MultimodalTransformer(nn.Module):
+    def __init__(self, hidden_dim: int = 768, num_heads: int = 12,
+                 num_layers: int = 6, dropout: float = 0.1):
+        """
+        Transformer architecture for multimodal fusion
+        """
+        super(MultimodalTransformer, self).__init__()
+
+        self.hidden_dim = hidden_dim
+        self.num_heads = num_heads
+        self.num_layers = num_layers
+
+        # Modality-specific embeddings
+        self.vision_embedding = nn.Linear(512, hidden_dim)
+        self.language_embedding = nn.Linear(512, hidden_dim)
+        self.audio_embedding = nn.Linear(256, hidden_dim)
+
+        # Positional encodings for different modalities
+        self.vision_pos_enc = nn.Parameter(torch.randn(1, 1, hidden_dim))
+        self.language_pos_enc = nn.Parameter(torch.randn(1, 50, hidden_dim))  # Assuming max seq len of 50
+        self.audio_pos_enc = nn.Parameter(torch.randn(1, 1, hidden_dim))
+
+        # Modality type embeddings
+        self.modality_embeddings = nn.Embedding(3, hidden_dim)  # 3 modalities
+
+        # Transformer layers
+        self.transformer_layers = nn.ModuleList([
+            nn.TransformerEncoderLayer(
+                d_model=hidden_dim,
+                nhead=num_heads,
+                dropout=dropout,
+                batch_first=True
+            ) for _ in range(num_layers)
+        ])
+
+        # Output heads for different tasks
+        self.classification_head = nn.Linear(hidden_dim, 100)  # Example: 100 classes
+        self.regression_head = nn.Linear(hidden_dim, 6)  # Example: 6-DOF pose
+        self.action_prediction_head = nn.Linear(hidden_dim, 20)  # Example: 20 possible actions
+
+    def forward(self, vision_features: torch.Tensor,
+                language_features: torch.Tensor,
+                audio_features: Optional[torch.Tensor] = None,
+                task: str = 'classification') -> torch.Tensor:
+        """
+        Forward pass through multimodal transformer
+
+        Args:
+            vision_features: Vision features (batch_size, vision_seq_len, vision_dim)
+            language_features: Language features (batch_size, lang_seq_len, lang_dim)
+            audio_features: Audio features (batch_size, audio_seq_len, audio_dim)
+            task: Type of task to perform ('classification', 'regression', 'action_prediction')
+
+        Returns:
+            Output tensor based on the specified task
+        """
+        batch_size = vision_features.shape[0]
+
+        # Embed each modality
+        vision_embedded = self.vision_embedding(vision_features)
+        language_embedded = self.language_embedding(language_features)
+
+        # Add positional encodings
+        vision_embedded = vision_embedded + self.vision_pos_enc
+        language_embedded = language_embedded + self.language_pos_enc[:, :language_embedded.shape[1], :]
+
+        # Add modality type embeddings
+        vision_modality_idx = torch.full((vision_embedded.shape[0], vision_embedded.shape[1]), 0, dtype=torch.long)
+        language_modality_idx = torch.full((language_embedded.shape[0], language_embedded.shape[1]), 1, dtype=torch.long)
+
+        vision_embedded = vision_embedded + self.modality_embeddings(vision_modality_idx)
+        language_embedded = language_embedded + self.modality_embeddings(language_modality_idx)
+
+        # Prepare multimodal sequence
+        multimodal_seq = [vision_embedded, language_embedded]
+
+        if audio_features is not None:
+            audio_embedded = self.audio_embedding(audio_features)
+            audio_embedded = audio_embedded + self.audio_pos_enc
+            audio_modality_idx = torch.full((audio_embedded.shape[0], audio_embedded.shape[1]), 2, dtype=torch.long)
+            audio_embedded = audio_embedded + self.modality_embeddings(audio_modality_idx)
+            multimodal_seq.append(audio_embedded)
+
+        # Concatenate all modalities
+        fused_seq = torch.cat(multimodal_seq, dim=1)
+
+        # Apply transformer layers
+        for layer in self.transformer_layers:
+            fused_seq = layer(fused_seq)
+
+        # Global pooling to get single representation
+        pooled_output = torch.mean(fused_seq, dim=1)
+
+        # Apply task-specific head
+        if task == 'classification':
+            output = self.classification_head(pooled_output)
+        elif task == 'regression':
+            output = self.regression_head(pooled_output)
+        elif task == 'action_prediction':
+            output = self.action_prediction_head(pooled_output)
+        else:
+            raise ValueError(f"Unknown task: {task}")
+
+        return output
+
+class MultimodalMemoryBank:
+    def __init__(self, capacity: int = 1000, feature_dim: int = 768):
+        """
+        Memory bank for storing multimodal experiences
+        """
+        self.capacity = capacity
+        self.feature_dim = feature_dim
+
+        # Memory storage
+        self.memory_features = torch.zeros(capacity, feature_dim)
+        self.memory_labels = torch.zeros(capacity, dtype=torch.long)
+        self.memory_modalities = torch.zeros(capacity, 3)  # vision, language, audio presence
+        self.insert_idx = 0
+        self.current_size = 0
+
+        # Similarity threshold for retrieval
+        self.similarity_threshold = 0.7
+
+    def add_experience(self, features: torch.Tensor, label: torch.Tensor,
+                      modalities_present: List[bool]):
+        """
+        Add a multimodal experience to memory
+        """
+        if self.current_size < self.capacity:
+            self.current_size += 1
+
+        # Store features
+        self.memory_features[self.insert_idx] = features
+        self.memory_labels[self.insert_idx] = label
+        self.memory_modalities[self.insert_idx] = torch.tensor(modalities_present, dtype=torch.float)
+
+        # Update insertion index (circular buffer)
+        self.insert_idx = (self.insert_idx + 1) % self.capacity
+
+    def retrieve_similar_experiences(self, query_features: torch.Tensor,
+                                   k: int = 5) -> Tuple[torch.Tensor, torch.Tensor]:
+        """
+        Retrieve k most similar experiences from memory
+        """
+        # Calculate similarities with all stored experiences
+        similarities = F.cosine_similarity(query_features.unsqueeze(0), self.memory_features[:self.current_size], dim=1)
+
+        # Get top-k similar experiences
+        top_k_similarities, top_k_indices = torch.topk(similarities, k=min(k, self.current_size))
+
+        # Return features and labels of similar experiences
+        similar_features = self.memory_features[top_k_indices]
+        similar_labels = self.memory_labels[top_k_indices]
+
+        return similar_features, similar_labels
+
+class MultimodalLearningSystem:
+    def __init__(self, hidden_dim: int = 768):
+        """
+        Complete multimodal learning system for humanoid robots
+        """
+        self.multimodal_transformer = MultimodalTransformer(hidden_dim=hidden_dim)
+        self.memory_bank = MultimodalMemoryBank(feature_dim=hidden_dim)
+        self.optimizer = torch.optim.Adam(self.multimodal_transformer.parameters(), lr=1e-4)
+        self.loss_fn = nn.CrossEntropyLoss()
+
+        # Task-specific parameters
+        self.current_task = 'classification'
+        self.task_weights = {
+            'classification': 1.0,
+            'regression': 1.0,
+            'action_prediction': 1.0
+        }
+
+    def train_step(self, vision_batch: torch.Tensor,
+                   language_batch: torch.Tensor,
+                   labels_batch: torch.Tensor,
+                   audio_batch: Optional[torch.Tensor] = None) -> Dict:
+        """
+        Single training step for multimodal learning
+        """
+        self.multimodal_transformer.train()
+
+        # Forward pass
+        outputs = self.multimodal_transformer(
+            vision_batch, language_batch, audio_batch, self.current_task
+        )
+
+        # Calculate loss
+        loss = self.loss_fn(outputs, labels_batch)
+
+        # Backward pass
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        # Store experience in memory
+        with torch.no_grad():
+            features = self.extract_multimodal_features(vision_batch, language_batch, audio_batch)
+            for i in range(len(features)):
+                modalities_present = [True, True, audio_batch is not None]
+                self.memory_bank.add_experience(
+                    features[i], labels_batch[i], modalities_present
+                )
+
+        return {
+            'loss': loss.item(),
+            'outputs': outputs,
+            'features': features
+        }
+
+    def extract_multimodal_features(self, vision_batch: torch.Tensor,
+                                  language_batch: torch.Tensor,
+                                  audio_batch: Optional[torch.Tensor] = None) -> torch.Tensor:
+        """
+        Extract multimodal features without task-specific heads
+        """
+        with torch.no_grad():
+            features = self.multimodal_transformer(
+                vision_batch, language_batch, audio_batch, 'feature_extraction'
+            )
+            return features
+
+    def infer_with_memory_augmentation(self, vision_input: torch.Tensor,
+                                     language_input: torch.Tensor,
+                                     audio_input: Optional[torch.Tensor] = None,
+                                     k: int = 3) -> torch.Tensor:
+        """
+        Perform inference with memory augmentation
+        """
+        self.multimodal_transformer.eval()
+
+        with torch.no_grad():
+            # Get current multimodal features
+            current_features = self.extract_multimodal_features(vision_input, language_input, audio_input)
+
+            # Retrieve similar experiences from memory
+            similar_features, similar_labels = self.memory_bank.retrieve_similar_experiences(
+                current_features[0], k
+            )
+
+            # Combine current features with similar experiences
+            augmented_features = self.augment_with_memory(
+                current_features, similar_features, similar_labels
+            )
+
+            # Perform inference with augmented features
+            outputs = self.multimodal_transformer(
+                vision_input, language_input, audio_input, self.current_task
+            )
+
+            return outputs
+
+    def augment_with_memory(self, current_features: torch.Tensor,
+                          similar_features: torch.Tensor,
+                          similar_labels: torch.Tensor) -> torch.Tensor:
+        """
+        Augment current features with similar experiences from memory
+        """
+        # This would implement memory-augmented learning
+        # For now, returning current features unchanged
+        return current_features
+
+# Example usage
+learning_system = MultimodalLearningSystem()
+
+# Example training batch
+vision_batch = torch.randn(4, 512)  # Batch of vision features
+language_batch = torch.randn(4, 512)  # Batch of language features
+labels_batch = torch.randint(0, 100, (4,))  # Classification labels
+
+# Training step
+training_result = learning_system.train_step(vision_batch, language_batch, labels_batch)
+print(f"Training loss: {training_result['loss']:.4f}")
+```
+
+## Embodied Learning Systems
+
+### Vision-Language-Action Integration
+
+```python
+class VisionLanguageActionModel(nn.Module):
+    def __init__(self, vision_dim: int = 512, language_dim: int = 512, action_dim: int = 20):
+        """
+        Vision-Language-Action model for humanoid robot control
+        """
+        super(VisionLanguageActionModel, self).__init__()
+
+        self.vision_dim = vision_dim
+        self.language_dim = language_dim
+        self.action_dim = action_dim
+
+        # Vision encoder
+        self.vision_encoder = VisionEncoder(vision_dim)
+
+        # Language encoder
+        self.language_encoder = LanguageEncoder(language_dim)
+
+        # Multimodal fusion
+        self.fusion_network = MultimodalFusionNetwork(
+            input_dims=[vision_dim, language_dim],
+            output_dim=768
+        )
+
+        # Action decoder
+        self.action_decoder = nn.Sequential(
+            nn.Linear(768, 512),
+            nn.ReLU(),
+            nn.Dropout(0.2),
+            nn.Linear(512, 256),
+            nn.ReLU(),
+            nn.Linear(256, action_dim)
+        )
+
+        # Affordance prediction head
+        self.affordance_predictor = nn.Sequential(
+            nn.Linear(768, 256),
+            nn.ReLU(),
+            nn.Linear(256, 50)  # Predict affordances for 50 common objects
+        )
+
+        # Pose estimation head
+        self.pose_estimator = nn.Sequential(
+            nn.Linear(768, 256),
+            nn.ReLU(),
+            nn.Linear(256, 7)  # 3D position + quaternion orientation
+        )
+
+    def forward(self, vision_input: torch.Tensor,
+                language_input: torch.Tensor,
+                target_action: Optional[torch.Tensor] = None) -> Dict:
+        """
+        Forward pass for Vision-Language-Action model
+
+        Args:
+            vision_input: Visual input (images or features)
+            language_input: Language input (text or embeddings)
+            target_action: Target action (for supervised learning)
+
+        Returns:
+            Dictionary with predictions and intermediate representations
+        """
+        # Encode vision and language
+        vision_features = self.vision_encoder(vision_input)
+        language_features = self.language_encoder(language_input)
+
+        # Fuse modalities
+        fused_features = self.fusion_network([vision_features, language_features])
+
+        # Predict actions
+        action_logits = self.action_decoder(fused_features)
+        action_probs = F.softmax(action_logits, dim=-1)
+
+        # Predict affordances
+        affordance_logits = self.affordance_predictor(fused_features)
+        affordance_probs = F.sigmoid(affordance_logits)
+
+        # Estimate poses
+        pose_estimates = self.pose_estimator(fused_features)
+
+        result = {
+            'action_logits': action_logits,
+            'action_probs': action_probs,
+            'affordance_logits': affordance_logits,
+            'affordance_probs': affordance_probs,
+            'pose_estimates': pose_estimates,
+            'fused_features': fused_features
+        }
+
+        if target_action is not None:
+            # Calculate action prediction loss
+            action_loss = F.cross_entropy(action_logits, target_action)
+            result['action_loss'] = action_loss
+
+        return result
+
+    def predict_action_sequence(self, vision_input: torch.Tensor,
+                               language_input: torch.Tensor,
+                               sequence_length: int = 5) -> List[Dict]:
+        """
+        Predict a sequence of actions based on vision and language input
+        """
+        action_sequence = []
+
+        current_vision = vision_input
+        current_language = language_input
+
+        for step in range(sequence_length):
+            # Predict action for current state
+            prediction = self(current_vision, current_language)
+
+            # Get the most probable action
+            action_idx = torch.argmax(prediction['action_probs'], dim=-1)
+
+            # Add to sequence
+            action_sequence.append({
+                'step': step,
+                'action': action_idx.item(),
+                'confidence': torch.max(prediction['action_probs']).item(),
+                'fused_features': prediction['fused_features']
+            })
+
+            # In a real implementation, we would update the vision and language
+            # based on the predicted action and environmental feedback
+            # For now, we'll use the same inputs for simplicity
+
+        return action_sequence
+
+class EmbodiedLearningEnvironment:
+    def __init__(self):
+        """
+        Simulated environment for embodied learning
+        """
+        self.vla_model = VisionLanguageActionModel()
+        self.optimizer = torch.optim.Adam(self.vla_model.parameters(), lr=1e-4)
+
+        # Curriculum learning parameters
+        self.curriculum_stage = 0
+        self.difficulty_levels = [
+            'simple_grasping',
+            'complex_manipulation',
+            'navigation_with_interaction',
+            'multi_step_tasks',
+            'human_interaction'
+        ]
+
+        # Episode tracking
+        self.episode_count = 0
+        self.success_count = 0
+        self.total_reward = 0.0
+
+    def train_episode(self, episode_data: Dict) -> Dict:
+        """
+        Train the model on a single episode of data
+
+        Args:
+            episode_data: Dictionary containing vision, language, and action sequences
+
+        Returns:
+            Training metrics for the episode
+        """
+        self.vla_model.train()
+
+        total_loss = 0.0
+        action_predictions = []
+        action_targets = []
+
+        # Process each timestep in the episode
+        for timestep in range(len(episode_data['vision'])):
+            vision = episode_data['vision'][timestep]
+            language = episode_data['language'][timestep]
+            target_action = episode_data['actions'][timestep]
+
+            # Forward pass
+            prediction = self.vla_model(vision, language, target_action)
+
+            # Calculate loss
+            loss = prediction['action_loss']
+            total_loss += loss
+
+            # Store for accuracy calculation
+            action_predictions.append(torch.argmax(prediction['action_probs']))
+            action_targets.append(target_action)
+
+        # Backward pass
+        self.optimizer.zero_grad()
+        total_loss.backward()
+        self.optimizer.step()
+
+        # Calculate episode metrics
+        accuracy = self.calculate_accuracy(action_predictions, action_targets)
+
+        episode_metrics = {
+            'loss': total_loss.item() / len(episode_data['vision']),
+            'accuracy': accuracy,
+            'reward': episode_data.get('reward', 0.0),
+            'success': episode_data.get('success', False)
+        }
+
+        # Update statistics
+        self.episode_count += 1
+        if episode_data.get('success', False):
+            self.success_count += 1
+        self.total_reward += episode_data.get('reward', 0.0)
+
+        return episode_metrics
+
+    def calculate_accuracy(self, predictions: List[torch.Tensor],
+                          targets: List[torch.Tensor]) -> float:
+        """
+        Calculate accuracy of action predictions
+        """
+        correct = 0
+        total = len(predictions)
+
+        for pred, target in zip(predictions, targets):
+            if pred.item() == target.item():
+                correct += 1
+
+        return correct / total if total > 0 else 0.0
+
+    def evaluate_policy(self, evaluation_data: List[Dict]) -> Dict:
+        """
+        Evaluate the learned policy on evaluation data
+        """
+        self.vla_model.eval()
+
+        total_accuracy = 0.0
+        total_success_rate = 0.0
+        total_episodes = len(evaluation_data)
+
+        with torch.no_grad():
+            for episode in evaluation_data:
+                # Evaluate each episode
+                accuracy = self.evaluate_episode(episode)
+                success = episode.get('success', False)
+
+                total_accuracy += accuracy
+                total_success_rate += 1.0 if success else 0.0
+
+        return {
+            'average_accuracy': total_accuracy / total_episodes,
+            'success_rate': total_success_rate / total_episodes,
+            'total_evaluated': total_episodes
+        }
+
+    def evaluate_episode(self, episode_data: Dict) -> float:
+        """
+        Evaluate a single episode
+        """
+        correct_predictions = 0
+        total_predictions = 0
+
+        for timestep in range(len(episode_data['vision'])):
+            vision = episode_data['vision'][timestep]
+            language = episode_data['language'][timestep]
+            target_action = episode_data['actions'][timestep]
+
+            prediction = self.vla_model(vision, language)
+            predicted_action = torch.argmax(prediction['action_probs'])
+
+            if predicted_action.item() == target_action.item():
+                correct_predictions += 1
+            total_predictions += 1
+
+        return correct_predictions / total_predictions if total_predictions > 0 else 0.0
+
+    def adapt_to_new_task(self, new_task_data: Dict) -> bool:
+        """
+        Adapt the model to a new task using few-shot learning
+        """
+        # Implement few-shot adaptation using memory bank and meta-learning
+        # This would fine-tune the model on new task with minimal examples
+        try:
+            # Perform few-shot fine-tuning
+            self.perform_few_shot_finetuning(new_task_data)
+            return True
+        except Exception as e:
+            print(f"Failed to adapt to new task: {e}")
+            return False
+
+    def perform_few_shot_finetuning(self, task_data: Dict):
+        """
+        Perform few-shot fine-tuning on new task
+        """
+        # This would implement meta-learning or few-shot adaptation techniques
+        # For now, we'll just do a few gradient steps on the new task
+        self.vla_model.train()
+
+        for _ in range(10):  # Few gradient steps
+            # Sample from task data
+            idx = np.random.randint(0, len(task_data['vision']))
+            vision = task_data['vision'][idx]
+            language = task_data['language'][idx]
+            target = task_data['actions'][idx]
+
+            # Forward and backward pass
+            prediction = self.vla_model(vision.unsqueeze(0), language.unsqueeze(0), target.unsqueeze(0))
+
+            self.optimizer.zero_grad()
+            prediction['action_loss'].backward()
+            self.optimizer.step()
+
+# Example usage
+embodied_env = EmbodiedLearningEnvironment()
+
+# Example episode data (in practice, this would come from robot interactions)
+episode_data = {
+    'vision': [torch.randn(1, 3, 224, 224) for _ in range(10)],  # 10 timesteps
+    'language': [torch.randint(0, 1000, (1, 50)) for _ in range(10)],  # 10 timesteps
+    'actions': [torch.randint(0, 20, (1,)) for _ in range(10)],  # 20 possible actions
+    'reward': 1.0,
+    'success': True
+}
+
+# Train on episode
+metrics = embodied_env.train_episode(episode_data)
+print(f"Episode metrics: {metrics}")
+```
+
+## Sensor Fusion Architecture
+
+### Advanced Sensor Fusion Techniques
+
+```python
+class SensorFusionArchitecture:
+    def __init__(self, sensor_configs: Dict[str, Dict]):
+        """
+        Advanced sensor fusion architecture for humanoid robots
+
+        Args:
+            sensor_configs: Dictionary containing configuration for each sensor type
+        """
+        self.sensor_configs = sensor_configs
+        self.sensors = {}
+        self.fusion_modules = {}
+        self.uncertainty_estimators = {}
+
+        # Initialize sensor-specific processing modules
+        self._initialize_sensors()
+
+        # Initialize fusion modules
+        self._initialize_fusion_modules()
+
+        # Initialize uncertainty estimators
+        self._initialize_uncertainty_estimators()
+
+        # Global state estimator
+        self.state_estimator = ExtendedKalmanFilter(state_dim=12)  # [pos, vel, orient, ang_vel]
+
+    def _initialize_sensors(self):
+        """
+        Initialize processing modules for each sensor type
+        """
+        for sensor_name, config in self.sensor_configs.items():
+            sensor_type = config['type']
+
+            if sensor_type == 'camera':
+                self.sensors[sensor_name] = CameraProcessor(config)
+            elif sensor_type == 'lidar':
+                self.sensors[sensor_name] = LiDARProcessor(config)
+            elif sensor_type == 'imu':
+                self.sensors[sensor_name] = IMUProcessor(config)
+            elif sensor_type == 'force_torque':
+                self.sensors[sensor_name] = ForceTorqueProcessor(config)
+            elif sensor_type == 'joint_encoder':
+                self.sensors[sensor_name] = JointEncoderProcessor(config)
+            else:
+                raise ValueError(f"Unsupported sensor type: {sensor_type}")
+
+    def _initialize_fusion_modules(self):
+        """
+        Initialize fusion modules for different sensor combinations
+        """
+        # Vision-LiDAR fusion
+        self.fusion_modules['vision_lidar'] = VisionLiDARFusion()
+
+        # Vision-IMU fusion
+        self.fusion_modules['vision_imu'] = VisionIMUFusion()
+
+        # IMU-ForceTorque fusion
+        self.fusion_modules['imu_force'] = IMUForceFusion()
+
+        # Multi-sensor fusion
+        self.fusion_modules['multi_sensor'] = MultiSensorFusion()
+
+    def _initialize_uncertainty_estimators(self):
+        """
+        Initialize uncertainty estimation for each sensor and fusion
+        """
+        for sensor_name, sensor in self.sensors.items():
+            self.uncertainty_estimators[sensor_name] = UncertaintyEstimator(sensor)
+
+    def process_sensor_data(self, sensor_inputs: Dict[str, np.ndarray]) -> Dict:
+        """
+        Process data from all sensors and perform fusion
+
+        Args:
+            sensor_inputs: Dictionary with sensor data keyed by sensor name
+
+        Returns:
+            Dictionary with fused perception and state estimates
+        """
+        processed_data = {}
+        uncertainties = {}
+
+        # Process each sensor individually
+        for sensor_name, data in sensor_inputs.items():
+            if sensor_name in self.sensors:
+                processed = self.sensors[sensor_name].process(data)
+                uncertainty = self.uncertainty_estimators[sensor_name].estimate(data)
+
+                processed_data[sensor_name] = processed
+                uncertainties[sensor_name] = uncertainty
+
+        # Perform sensor fusion
+        fused_results = self._perform_fusion(processed_data, uncertainties)
+
+        # Update global state estimate
+        state_estimate = self.state_estimator.update(fused_results)
+
+        return {
+            'processed_data': processed_data,
+            'fused_results': fused_results,
+            'state_estimate': state_estimate,
+            'uncertainties': uncertainties,
+            'confidence': self._calculate_overall_confidence(uncertainties)
+        }
+
+    def _perform_fusion(self, processed_data: Dict, uncertainties: Dict) -> Dict:
+        """
+        Perform fusion of processed sensor data
+        """
+        fusion_results = {}
+
+        # Vision-LiDAR fusion if both are available
+        if 'camera' in processed_data and 'lidar' in processed_data:
+            fusion_results['vision_lidar'] = self.fusion_modules['vision_lidar'].fuse(
+                processed_data['camera'], processed_data['lidar'],
+                uncertainties['camera'], uncertainties['lidar']
+            )
+
+        # Vision-IMU fusion if both are available
+        if 'camera' in processed_data and 'imu' in processed_data:
+            fusion_results['vision_imu'] = self.fusion_modules['vision_imu'].fuse(
+                processed_data['camera'], processed_data['imu'],
+                uncertainties['camera'], uncertainties['imu']
+            )
+
+        # IMU-ForceTorque fusion if both are available
+        if 'imu' in processed_data and 'force_torque' in processed_data:
+            fusion_results['imu_force'] = self.fusion_modules['imu_force'].fuse(
+                processed_data['imu'], processed_data['force_torque'],
+                uncertainties['imu'], uncertainties['force_torque']
+            )
+
+        # Multi-sensor fusion
+        fusion_results['multi_sensor'] = self.fusion_modules['multi_sensor'].fuse(
+            processed_data, uncertainties
+        )
+
+        return fusion_results
+
+    def _calculate_overall_confidence(self, uncertainties: Dict) -> float:
+        """
+        Calculate overall confidence in the fused perception
+        """
+        # Calculate confidence as inverse of uncertainty
+        confidences = [1.0 - uncert.get('overall', 0.5) for uncert in uncertainties.values()]
+        return np.mean(confidences) if confidences else 0.5
+
+class CameraProcessor:
+    def __init__(self, config: Dict):
+        """
+        Process camera sensor data
+        """
+        self.config = config
+        self.width = config.get('width', 640)
+        self.height = config.get('height', 480)
+        self.fov = config.get('fov', 60)  # Field of view in degrees
+
+        # Initialize camera-specific processing
+        self.object_detector = self._initialize_object_detector()
+        self.feature_extractor = self._initialize_feature_extractor()
+        self.depth_estimator = self._initialize_depth_estimator()
+
+    def _initialize_object_detector(self):
+        """
+        Initialize object detection pipeline
+        """
+        # This would load a pre-trained model like YOLO or similar
+        # For this example, we'll create a placeholder
+        return lambda img: self._dummy_object_detection(img)
+
+    def _initialize_feature_extractor(self):
+        """
+        Initialize feature extraction pipeline
+        """
+        # This would initialize SIFT, ORB, or deep learning features
+        return lambda img: self._dummy_feature_extraction(img)
+
+    def _initialize_depth_estimator(self):
+        """
+        Initialize depth estimation (if stereo or structured light camera)
+        """
+        return lambda img: self._dummy_depth_estimation(img)
+
+    def _dummy_object_detection(self, image: np.ndarray) -> List[Dict]:
+        """
+        Placeholder for object detection
+        """
+        # In reality, this would run an object detector
+        return [
+            {'class': 'person', 'bbox': [100, 100, 200, 200], 'confidence': 0.9},
+            {'class': 'cup', 'bbox': [300, 300, 350, 350], 'confidence': 0.8}
+        ]
+
+    def _dummy_feature_extraction(self, image: np.ndarray) -> np.ndarray:
+        """
+        Placeholder for feature extraction
+        """
+        # In reality, this would extract visual features
+        return np.random.rand(512)  # 512-dimensional feature vector
+
+    def _dummy_depth_estimation(self, image: np.ndarray) -> np.ndarray:
+        """
+        Placeholder for depth estimation
+        """
+        # In reality, this would estimate depth
+        return np.random.rand(self.height, self.width) * 10.0  # Depth map (0-10m)
+
+    def process(self, image: np.ndarray) -> Dict:
+        """
+        Process camera data
+        """
+        # Perform object detection
+        objects = self.object_detector(image)
+
+        # Extract features
+        features = self.feature_extractor(image)
+
+        # Estimate depth (if applicable)
+        depth_map = self.depth_estimator(image)
+
+        return {
+            'objects': objects,
+            'features': features,
+            'depth_map': depth_map,
+            'timestamp': time.time()
+        }
+
+class LiDARProcessor:
+    def __init__(self, config: Dict):
+        """
+        Process LiDAR sensor data
+        """
+        self.config = config
+        self.range_min = config.get('range_min', 0.1)
+        self.range_max = config.get('range_max', 10.0)
+        self.fov = config.get('fov', 360)  # Field of view in degrees
+        self.resolution = config.get('resolution', 0.25)  # Angular resolution in degrees
+
+        # Initialize LiDAR-specific processing
+        self.segmentation_algorithm = self._initialize_segmentation()
+        self.ground_removal = self._initialize_ground_removal()
+        self.cluster_analysis = self._initialize_cluster_analysis()
+
+    def _initialize_segmentation(self):
+        """
+        Initialize segmentation algorithm
+        """
+        return self._segment_point_cloud
+
+    def _initialize_ground_removal(self):
+        """
+        Initialize ground removal algorithm
+        """
+        return self._remove_ground_points
+
+    def _initialize_cluster_analysis(self):
+        """
+        Initialize clustering algorithm for object detection
+        """
+        return self._cluster_points
+
+    def _segment_point_cloud(self, point_cloud: np.ndarray) -> Dict:
+        """
+        Segment point cloud into different components
+        """
+        # Placeholder segmentation
+        return {
+            'ground_points': point_cloud[point_cloud[:, 2] < 0.1],  # Points near ground
+            'obstacle_points': point_cloud[point_cloud[:, 2] >= 0.1],  # Obstacles above ground
+            'clusters': self._cluster_points(point_cloud)
+        }
+
+    def _remove_ground_points(self, point_cloud: np.ndarray) -> np.ndarray:
+        """
+        Remove ground points from point cloud
+        """
+        # Simple ground removal based on z-coordinate
+        return point_cloud[point_cloud[:, 2] > 0.1]
+
+    def _cluster_points(self, point_cloud: np.ndarray) -> List[np.ndarray]:
+        """
+        Cluster points to identify objects
+        """
+        # Placeholder clustering - in reality, this would use DBSCAN or similar
+        clusters = []
+        # For simplicity, return empty clusters
+        return clusters
+
+    def process(self, scan_data: np.ndarray) -> Dict:
+        """
+        Process LiDAR scan data
+        """
+        # Convert scan to point cloud if needed
+        if scan_data.ndim == 1:  # Range data
+            point_cloud = self._scan_to_point_cloud(scan_data)
+        else:  # Already point cloud
+            point_cloud = scan_data
+
+        # Segment point cloud
+        segmentation = self.segmentation_algorithm(point_cloud)
+
+        # Remove ground points
+        obstacles = self.ground_removal(point_cloud)
+
+        # Analyze clusters
+        clusters = self.cluster_analysis(obstacles)
+
+        return {
+            'point_cloud': point_cloud,
+            'segmentation': segmentation,
+            'obstacles': obstacles,
+            'clusters': clusters,
+            'timestamp': time.time()
+        }
+
+    def _scan_to_point_cloud(self, ranges: np.ndarray) -> np.ndarray:
+        """
+        Convert range data to 3D point cloud
+        """
+        # Calculate angles for each beam
+        angles = np.linspace(-np.pi, np.pi, len(ranges))
+
+        # Convert to Cartesian coordinates (simplified to 2D for this example)
+        x_coords = ranges * np.cos(angles)
+        y_coords = ranges * np.sin(angles)
+        z_coords = np.zeros_like(ranges)  # Simplified to ground level
+
+        point_cloud = np.column_stack([x_coords, y_coords, z_coords])
+
+        # Remove invalid ranges (NaN or inf)
+        valid_mask = np.isfinite(ranges) & (ranges >= self.range_min) & (ranges <= self.range_max)
+        point_cloud = point_cloud[valid_mask]
+
+        return point_cloud
+
+class IMUProcessor:
+    def __init__(self, config: Dict):
+        """
+        Process IMU sensor data
+        """
+        self.config = config
+        self.frequency = config.get('frequency', 100)  # Hz
+        self.linear_acceleration_noise = config.get('linear_acceleration_noise', 0.017)
+        self.angular_velocity_noise = config.get('angular_velocity_noise', 0.0015)
+        self.orientation_noise = config.get('orientation_noise', 0.01)
+
+        # Initialize filters
+        self.orientation_filter = ComplementaryFilter()
+        self.bias_estimator = BiasEstimator()
+
+    def process(self, imu_data: Dict) -> Dict:
+        """
+        Process IMU data
+        """
+        # Extract components
+        linear_accel = np.array(imu_data.get('linear_acceleration', [0, 0, 0]))
+        angular_vel = np.array(imu_data.get('angular_velocity', [0, 0, 0]))
+        orientation = np.array(imu_data.get('orientation', [0, 0, 0, 1]))  # w, x, y, z
+
+        # Estimate orientation using complementary filter
+        filtered_orientation = self.orientation_filter.update(
+            linear_accel, angular_vel, orientation
+        )
+
+        # Estimate and compensate for biases
+        compensated_accel = linear_accel - self.bias_estimator.linear_bias
+        compensated_gyro = angular_vel - self.bias_estimator.angular_bias
+
+        # Calculate derived quantities
+        gravity_aligned_accel = self._remove_gravity(compensated_accel, filtered_orientation)
+        linear_velocity = self._integrate_velocity(compensated_accel)
+
+        return {
+            'linear_acceleration': linear_accel,
+            'compensated_acceleration': compensated_accel,
+            'gravity_aligned_acceleration': gravity_aligned_accel,
+            'angular_velocity': angular_vel,
+            'compensated_angular_velocity': compensated_gyro,
+            'orientation': orientation,
+            'filtered_orientation': filtered_orientation,
+            'linear_velocity': linear_velocity,
+            'timestamp': time.time()
+        }
+
+    def _remove_gravity(self, accel: np.ndarray, orientation: np.ndarray) -> np.ndarray:
+        """
+        Remove gravity component from linear acceleration
+        """
+        # Convert quaternion to rotation matrix
+        q = orientation
+        R = np.array([
+            [1 - 2*(q[2]**2 + q[3]**2), 2*(q[1]*q[2] - q[0]*q[3]), 2*(q[1]*q[3] + q[0]*q[2])],
+            [2*(q[1]*q[2] + q[0]*q[3]), 1 - 2*(q[1]**2 + q[3]**2), 2*(q[2]*q[3] - q[0]*q[1])],
+            [2*(q[1]*q[3] - q[0]*q[2]), 2*(q[2]*q[3] + q[0]*q[1]), 1 - 2*(q[1]**2 + q[2]**2)]
+        ])
+
+        # Calculate gravity vector in body frame
+        gravity_body = R.T @ np.array([0, 0, 9.81])
+
+        # Remove gravity from acceleration
+        linear_accel = accel - gravity_body
+
+        return linear_accel
+
+    def _integrate_velocity(self, accel: np.ndarray) -> np.ndarray:
+        """
+        Integrate acceleration to get velocity (simplified)
+        """
+        # This would implement proper integration with time deltas
+        # For now, return zeros
+        return np.zeros_like(accel)
+
+class ExtendedKalmanFilter:
+    def __init__(self, state_dim: int = 12):
+        """
+        Extended Kalman Filter for state estimation
+        State: [position (3), velocity (3), orientation (4), angular_velocity (3)]
+        Note: orientation is 4 values (quaternion) but only 3 are independent
+        """
+        self.state_dim = state_dim
+        self.state = np.zeros(state_dim)
+
+        # Covariance matrix
+        self.covariance = np.eye(state_dim) * 0.1
+
+        # Process noise
+        self.process_noise = np.eye(state_dim) * 0.01
+
+        # Measurement noise (will be set based on sensor characteristics)
+        self.measurement_noise = np.eye(3) * 0.1  # For position measurements as example
+
+    def predict(self, control_input: Optional[np.ndarray] = None, dt: float = 0.01):
+        """
+        Prediction step of the EKF
+        """
+        # State transition model (simplified)
+        # In reality, this would involve complex humanoid dynamics
+        F = self._compute_jacobian(self.state)
+
+        # Predict state
+        self.state = self._nonlinear_transition(self.state, control_input, dt)
+
+        # Predict covariance
+        self.covariance = F @ self.covariance @ F.T + self.process_noise
+
+    def update(self, measurements: Dict) -> np.ndarray:
+        """
+        Update step of the EKF with sensor measurements
+        """
+        # This would handle different types of measurements
+        # For now, focusing on position measurements from vision
+        if 'position_measurement' in measurements:
+            self._update_position(measurements['position_measurement'])
+
+        if 'orientation_measurement' in measurements:
+            self._update_orientation(measurements['orientation_measurement'])
+
+        return self.state
+
+    def _compute_jacobian(self, state: np.ndarray) -> np.ndarray:
+        """
+        Compute Jacobian of the state transition function
+        """
+        F = np.eye(self.state_dim)
+
+        # Simplified Jacobian - in reality this would be complex
+        # based on humanoid dynamics
+        return F
+
+    def _nonlinear_transition(self, state: np.ndarray,
+                            control: Optional[np.ndarray], dt: float) -> np.ndarray:
+        """
+        Nonlinear state transition function
+        """
+        new_state = state.copy()
+
+        # Update position based on velocity
+        new_state[0:3] = state[0:3] + state[3:6] * dt
+
+        # Update velocity based on acceleration (if control provided)
+        if control is not None:
+            new_state[3:6] = state[3:6] + control[0:3] * dt
+
+        # Update orientation based on angular velocity
+        # This is a simplified integration
+        omega = state[7:10]  # Angular velocity (skipping quaternion scalar part)
+        new_state[7:10] = state[7:10] + omega * dt
+
+        return new_state
+
+    def _update_position(self, measurement: np.ndarray):
+        """
+        Update filter with position measurement
+        """
+        # Measurement matrix for position
+        H = np.zeros((3, self.state_dim))
+        H[0:3, 0:3] = np.eye(3)  # Position directly observed
+
+        # Innovation
+        innovation = measurement - self.state[0:3]
+
+        # Innovation covariance
+        S = H @ self.covariance @ H.T + self.measurement_noise
+
+        # Kalman gain
+        K = self.covariance @ H.T @ np.linalg.inv(S)
+
+        # Update state and covariance
+        self.state = self.state + K @ innovation
+        self.covariance = (np.eye(self.state_dim) - K @ H) @ self.covariance
+
+    def _update_orientation(self, measurement: np.ndarray):
+        """
+        Update filter with orientation measurement
+        """
+        # Measurement matrix for orientation
+        H = np.zeros((4, self.state_dim))
+        H[0:4, 4:8] = np.eye(4)  # Orientation (quaternion) directly observed
+
+        # For quaternion measurements, special care is needed
+        # due to the nonlinear nature of rotations
+        innovation = self._quaternion_difference(measurement, self.state[4:8])
+
+        # Measurement noise for orientation
+        R = np.eye(4) * 0.01
+
+        # Innovation covariance
+        S = H @ self.covariance @ H.T + R
+
+        # Kalman gain
+        K = self.covariance @ H.T @ np.linalg.inv(S)
+
+        # Update state
+        self.state[4:8] = self._quaternion_multiply(self.state[4:8],
+                                                   self._exp_map(innovation))
+
+        # Update covariance
+        self.covariance = (np.eye(self.state_dim) - K @ H) @ self.covariance
+
+    def _quaternion_difference(self, q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
+        """
+        Compute difference between two quaternions
+        """
+        # This would compute the error quaternion
+        # For now, return a simple difference
+        return q1 - q2
+
+    def _quaternion_multiply(self, q1: np.ndarray, q2: np.ndarray) -> np.ndarray:
+        """
+        Multiply two quaternions
+        """
+        w1, x1, y1, z1 = q1
+        w2, x2, y2, z2 = q2
+
+        w = w1*w2 - x1*x2 - y1*y2 - z1*z2
+        x = w1*x2 + x1*w2 + y1*z2 - z1*y2
+        y = w1*y2 - x1*z2 + y1*w2 + z1*x2
+        z = w1*z2 + x1*y2 - y1*x2 + z1*w2
+
+        return np.array([w, x, y, z])
+
+    def _exp_map(self, vec: np.ndarray) -> np.ndarray:
+        """
+        Exponential map from vector to quaternion
+        """
+        angle = np.linalg.norm(vec)
+        if angle < 1e-6:
+            return np.array([1, 0, 0, 0])  # Identity quaternion
+
+        axis = vec / angle
+        w = np.cos(angle/2)
+        xyz = axis * np.sin(angle/2)
+
+        return np.array([w, xyz[0], xyz[1], xyz[2]])
+
+# Example usage of sensor fusion architecture
+sensor_configs = {
+    'camera_front': {
+        'type': 'camera',
+        'width': 640,
+        'height': 480,
+        'fov': 60
+    },
+    'lidar_3d': {
+        'type': 'lidar',
+        'range_min': 0.1,
+        'range_max': 20.0,
+        'fov': 360
+    },
+    'imu_main': {
+        'type': 'imu',
+        'frequency': 100
+    }
+}
+
+fusion_arch = SensorFusionArchitecture(sensor_configs)
+
+# Example sensor data
+sensor_inputs = {
+    'camera_front': np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8),  # Image
+    'lidar_3d': np.random.uniform(0.1, 10.0, 720),  # Range measurements
+    'imu_main': {
+        'linear_acceleration': [0.1, 0.05, 9.81],
+        'angular_velocity': [0.01, 0.02, 0.005],
+        'orientation': [0.99, 0.01, 0.02, 0.03]
+    }
+}
+
+# Process sensor data
+fusion_result = fusion_arch.process_sensor_data(sensor_inputs)
+print(f"State estimate: {fusion_result['state_estimate'][:6]}")  # First 6 values (pos + vel)
+print(f"Overall confidence: {fusion_result['confidence']:.3f}")
+```
+
+## Performance Optimization
+
+### Efficient Multimodal Processing
+
+```python
+import multiprocessing
+import asyncio
+from concurrent.futures import ThreadPoolExecutor
+import time
+
+class EfficientMultimodalProcessor:
+    def __init__(self, num_processes: int = 4):
+        """
+        Efficient processor for multimodal data using parallel processing
+        """
+        self.num_processes = num_processes
+        self.process_pool = multiprocessing.Pool(num_processes)
+        self.thread_pool = ThreadPoolExecutor(max_workers=num_processes)
+
+        # Async event loop for I/O operations
+        self.event_loop = asyncio.new_event_loop()
+        asyncio.set_event_loop(self.event_loop)
+
+        # Processing queues
+        self.vision_queue = asyncio.Queue()
+        self.language_queue = asyncio.Queue()
+        self.sensor_queue = asyncio.Queue()
+
+        # Performance metrics
+        self.metrics = {
+            'vision_processing_time': [],
+            'language_processing_time': [],
+            'fusion_time': [],
+            'total_throughput': []
+        }
+
+    def process_multimodal_batch(self, vision_batch: List[np.ndarray],
+                               language_batch: List[str],
+                               sensor_batch: List[Dict]) -> List[Dict]:
+        """
+        Process a batch of multimodal inputs efficiently
+        """
+        start_time = time.time()
+
+        # Process each modality in parallel
+        vision_results = self._process_vision_parallel(vision_batch)
+        language_results = self._process_language_parallel(language_batch)
+        sensor_results = self._process_sensor_parallel(sensor_batch)
+
+        # Fuse results
+        fused_results = self._fuse_multimodal_results(
+            vision_results, language_results, sensor_results
+        )
+
+        total_time = time.time() - start_time
+
+        # Update metrics
+        self.metrics['total_throughput'].append(len(vision_batch) / total_time)
+
+        return fused_results
+
+    def _process_vision_parallel(self, vision_batch: List[np.ndarray]) -> List[Dict]:
+        """
+        Process vision batch in parallel
+        """
+        start_time = time.time()
+
+        # In a real implementation, this would use the actual vision processing pipeline
+        # For this example, we'll simulate processing
+        results = []
+        for img in vision_batch:
+            # Simulate vision processing
+            result = self._process_single_vision(img)
+            results.append(result)
+
+        self.metrics['vision_processing_time'].append(time.time() - start_time)
+        return results
+
+    def _process_single_vision(self, image: np.ndarray) -> Dict:
+        """
+        Process a single vision input
+        """
+        # This would run the actual vision pipeline
+        # For simulation, return dummy results
+        return {
+            'features': np.random.rand(512).astype(np.float32),
+            'objects': [{'class': 'unknown', 'confidence': 0.5}],
+            'timestamp': time.time()
+        }
+
+    def _process_language_parallel(self, language_batch: List[str]) -> List[Dict]:
+        """
+        Process language batch in parallel
+        """
+        start_time = time.time()
+
+        results = []
+        for text in language_batch:
+            # Simulate language processing
+            result = self._process_single_language(text)
+            results.append(result)
+
+        self.metrics['language_processing_time'].append(time.time() - start_time)
+        return results
+
+    def _process_single_language(self, text: str) -> Dict:
+        """
+        Process a single language input
+        """
+        # This would run the actual NLP pipeline
+        # For simulation, return dummy results
+        return {
+            'embeddings': np.random.rand(512).astype(np.float32),
+            'intent': 'unknown',
+            'entities': [],
+            'timestamp': time.time()
+        }
+
+    def _process_sensor_parallel(self, sensor_batch: List[Dict]) -> List[Dict]:
+        """
+        Process sensor batch in parallel
+        """
+        results = []
+        for sensor_data in sensor_batch:
+            # Simulate sensor processing
+            result = self._process_single_sensor(sensor_data)
+            results.append(result)
+
+        return results
+
+    def _process_single_sensor(self, sensor_data: Dict) -> Dict:
+        """
+        Process a single sensor input
+        """
+        # This would process the actual sensor data
+        # For simulation, return dummy results
+        return {
+            'processed_data': sensor_data,
+            'confidence': 0.9,
+            'timestamp': time.time()
+        }
+
+    def _fuse_multimodal_results(self, vision_results: List[Dict],
+                               language_results: List[Dict],
+                               sensor_results: List[Dict]) -> List[Dict]:
+        """
+        Fuse results from different modalities
+        """
+        start_time = time.time()
+
+        fused_results = []
+        for v_res, l_res, s_res in zip(vision_results, language_results, sensor_results):
+            # Fuse the results
+            fused = {
+                'vision': v_res,
+                'language': l_res,
+                'sensor': s_res,
+                'fused_features': self._combine_modalities(v_res, l_res, s_res),
+                'timestamp': time.time()
+            }
+            fused_results.append(fused)
+
+        self.metrics['fusion_time'].append(time.time() - start_time)
+        return fused_results
+
+    def _combine_modalities(self, vision_result: Dict, language_result: Dict,
+                          sensor_result: Dict) -> np.ndarray:
+        """
+        Combine features from different modalities
+        """
+        # Simple concatenation of features (in reality, this would be more sophisticated)
+        vision_features = vision_result.get('features', np.zeros(512))
+        language_features = language_result.get('embeddings', np.zeros(512))
+        sensor_features = np.concatenate(list(sensor_result.get('processed_data', {}).values()))
+
+        # Normalize and concatenate
+        combined = np.concatenate([
+            vision_features / (np.linalg.norm(vision_features) + 1e-8),
+            language_features / (np.linalg.norm(language_features) + 1e-8),
+            sensor_features
+        ])
+
+        return combined
+
+    def get_performance_metrics(self) -> Dict:
+        """
+        Get performance metrics for the multimodal processor
+        """
+        import statistics
+
+        metrics_summary = {}
+
+        if self.metrics['vision_processing_time']:
+            metrics_summary['avg_vision_time'] = statistics.mean(self.metrics['vision_processing_time'])
+            metrics_summary['std_vision_time'] = statistics.stdev(self.metrics['vision_processing_time'])
+
+        if self.metrics['language_processing_time']:
+            metrics_summary['avg_language_time'] = statistics.mean(self.metrics['language_processing_time'])
+            metrics_summary['std_language_time'] = statistics.stdev(self.metrics['language_processing_time'])
+
+        if self.metrics['fusion_time']:
+            metrics_summary['avg_fusion_time'] = statistics.mean(self.metrics['fusion_time'])
+            metrics_summary['std_fusion_time'] = statistics.stdev(self.metrics['fusion_time'])
+
+        if self.metrics['total_throughput']:
+            metrics_summary['avg_throughput'] = statistics.mean(self.metrics['total_throughput'])
+            metrics_summary['max_throughput'] = max(self.metrics['total_throughput'])
+
+        return metrics_summary
+
+    def adaptive_processing(self, input_data: Dict, target_latency: float = 0.1) -> Dict:
+        """
+        Adapt processing based on target latency requirements
+        """
+        # Determine processing strategy based on latency requirements
+        if target_latency < 0.05:  # Very low latency required
+            return self._fast_processing(input_data)
+        elif target_latency < 0.1:  # Moderate latency
+            return self._balanced_processing(input_data)
+        else:  # Higher latency acceptable
+            return self._accurate_processing(input_data)
+
+    def _fast_processing(self, input_data: Dict) -> Dict:
+        """
+        Fast processing with lower accuracy
+        """
+        # Use lightweight models and simplified algorithms
+        vision_result = self._lightweight_vision_process(input_data['vision'])
+        language_result = self._lightweight_language_process(input_data['language'])
+        sensor_result = self._lightweight_sensor_process(input_data['sensor'])
+
+        return self._fuse_multimodal_results([vision_result], [language_result], [sensor_result])[0]
+
+    def _balanced_processing(self, input_data: Dict) -> Dict:
+        """
+        Balanced processing with moderate accuracy and speed
+        """
+        # Use medium-complexity models
+        vision_result = self._moderate_vision_process(input_data['vision'])
+        language_result = self._moderate_language_process(input_data['language'])
+        sensor_result = self._moderate_sensor_process(input_data['sensor'])
+
+        return self._fuse_multimodal_results([vision_result], [language_result], [sensor_result])[0]
+
+    def _accurate_processing(self, input_data: Dict) -> Dict:
+        """
+        Accurate processing with higher computational cost
+        """
+        # Use heavyweight models and detailed algorithms
+        vision_result = self._detailed_vision_process(input_data['vision'])
+        language_result = self._detailed_language_process(input_data['language'])
+        sensor_result = self._detailed_sensor_process(input_data['sensor'])
+
+        return self._fuse_multimodal_results([vision_result], [language_result], [sensor_result])[0]
+
+    def _lightweight_vision_process(self, image: np.ndarray) -> Dict:
+        """
+        Lightweight vision processing
+        """
+        # Use smaller, faster model
+        features = np.random.rand(256).astype(np.float32)  # Smaller feature vector
+        return {
+            'features': features,
+            'objects': [],  # Skip detailed object detection
+            'timestamp': time.time()
+        }
+
+    def _moderate_vision_process(self, image: np.ndarray) -> Dict:
+        """
+        Moderate vision processing
+        """
+        # Use medium-sized model
+        features = np.random.rand(512).astype(np.float32)
+        objects = [{'class': 'object', 'confidence': 0.7}]  # Simple detection
+        return {
+            'features': features,
+            'objects': objects,
+            'timestamp': time.time()
+        }
+
+    def _detailed_vision_process(self, image: np.ndarray) -> Dict:
+        """
+        Detailed vision processing
+        """
+        # Use full model with detailed analysis
+        features = np.random.rand(768).astype(np.float32)  # Larger feature vector
+        objects = [
+            {'class': 'person', 'confidence': 0.9, 'bbox': [100, 100, 200, 200]},
+            {'class': 'cup', 'confidence': 0.8, 'bbox': [300, 300, 350, 350]}
+        ]
+        return {
+            'features': features,
+            'objects': objects,
+            'timestamp': time.time()
+        }
+
+    def _lightweight_language_process(self, text: str) -> Dict:
+        """
+        Lightweight language processing
+        """
+        # Use simple bag-of-words or keyword extraction
+        embeddings = np.random.rand(128).astype(np.float32)  # Smaller embedding
+        return {
+            'embeddings': embeddings,
+            'intent': 'unknown',
+            'entities': [],
+            'timestamp': time.time()
+        }
+
+    def _moderate_language_process(self, text: str) -> Dict:
+        """
+        Moderate language processing
+        """
+        # Use medium-sized language model
+        embeddings = np.random.rand(512).astype(np.float32)
+        return {
+            'embeddings': embeddings,
+            'intent': 'action_command',
+            'entities': [{'type': 'object', 'value': 'unknown'}],
+            'timestamp': time.time()
+        }
+
+    def _detailed_language_process(self, text: str) -> Dict:
+        """
+        Detailed language processing
+        """
+        # Use full language model with detailed analysis
+        embeddings = np.random.rand(768).astype(np.float32)
+        return {
+            'embeddings': embeddings,
+            'intent': 'grasp_object',
+            'entities': [
+                {'type': 'action', 'value': 'grasp'},
+                {'type': 'object', 'value': 'cup'},
+                {'type': 'modifier', 'value': 'red'}
+            ],
+            'timestamp': time.time()
+        }
+
+    def _lightweight_sensor_process(self, sensor_data: Dict) -> Dict:
+        """
+        Lightweight sensor processing
+        """
+        return {
+            'processed_data': sensor_data,
+            'confidence': 0.7,
+            'timestamp': time.time()
+        }
+
+    def _moderate_sensor_process(self, sensor_data: Dict) -> Dict:
+        """
+        Moderate sensor processing
+        """
+        return {
+            'processed_data': sensor_data,
+            'confidence': 0.85,
+            'timestamp': time.time()
+        }
+
+    def _detailed_sensor_process(self, sensor_data: Dict) -> Dict:
+        """
+        Detailed sensor processing
+        """
+        return {
+            'processed_data': sensor_data,
+            'confidence': 0.95,
+            'timestamp': time.time()
+        }
+
+# Example usage
+processor = EfficientMultimodalProcessor(num_processes=4)
+
+# Example batch processing
+vision_batch = [np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8) for _ in range(5)]
+language_batch = ["Grasp the red cup", "Navigate to kitchen", "Greet the person", "Find the ball", "Move the chair"]
+sensor_batch = [{'imu': [0.1, 0.05, 9.81], 'ft': [10.0, 5.0, 2.0]} for _ in range(5)]
+
+results = processor.process_multimodal_batch(vision_batch, language_batch, sensor_batch)
+print(f"Processed {len(results)} multimodal inputs")
+
+# Get performance metrics
+metrics = processor.get_performance_metrics()
+print(f"Performance metrics: {metrics}")
+```
+
+## Best Practices and Guidelines
+
+### Multimodal Learning Best Practices
+
+1. **Cross-Modal Alignment**: Ensure proper alignment between different sensory modalities
+2. **Uncertainty Quantification**: Always estimate and propagate uncertainty through the system
+3. **Modality Dropout**: Train with randomly dropped modalities to improve robustness
+4. **Computational Efficiency**: Balance accuracy with real-time processing requirements
+5. **Safety Considerations**: Validate all decisions in safety-critical scenarios
+
+### Troubleshooting Common Issues
+
+```python
+class MultimodalTroubleshooter:
+    def __init__(self):
+        """
+        Troubleshoot common issues in multimodal learning systems
+        """
+        self.common_issues = {
+            'alignment_failure': self.troubleshoot_alignment_failure,
+            'modality_dropout': self.troubleshoot_modality_dropout,
+            'fusion_inaccuracy': self.troubleshoot_fusion_inaccuracy,
+            'computational_overload': self.troubleshoot_computational_overload,
+            'uncertainty_miscalculation': self.troubleshoot_uncertainty_miscalculation
+        }
+
+    def troubleshoot_alignment_failure(self):
+        """
+        Troubleshoot cross-modal alignment issues
+        """
+        fixes = [
+            "Verify temporal synchronization between modalities",
+            "Check spatial calibration between sensors",
+            "Validate coordinate system transformations",
+            "Ensure consistent preprocessing pipelines",
+            "Implement robust feature matching algorithms"
+        ]
+        return fixes
+
+    def troubleshoot_modality_dropout(self):
+        """
+        Troubleshoot issues when one or more modalities fail
+        """
+        fixes = [
+            "Implement fallback strategies for missing modalities",
+            "Design robust systems that work with partial input",
+            "Use uncertainty-aware fusion algorithms",
+            "Validate single-modality performance",
+            "Implement sensor health monitoring"
+        ]
+        return fixes
+
+    def troubleshoot_fusion_inaccuracy(self):
+        """
+        Troubleshoot inaccurate multimodal fusion results
+        """
+        fixes = [
+            "Review fusion architecture and algorithm selection",
+            "Validate individual modality performance",
+            "Check for proper normalization of features",
+            "Implement attention mechanisms for better fusion",
+            "Verify training data quality and diversity"
+        ]
+        return fixes
+
+    def troubleshoot_computational_overload(self):
+        """
+        Troubleshoot computational performance issues
+        """
+        fixes = [
+            "Optimize neural network architectures for inference speed",
+            "Use model quantization or pruning techniques",
+            "Implement efficient data preprocessing pipelines",
+            "Consider hierarchical processing to reduce load",
+            "Use hardware acceleration (GPU, TPU) where possible"
+        ]
+        return fixes
+
+    def troubleshoot_uncertainty_miscalculation(self):
+        """
+        Troubleshoot issues with uncertainty estimation
+        """
+        fixes = [
+            "Validate uncertainty estimation algorithms",
+            "Check for proper calibration of confidence scores",
+            "Implement ensemble methods for better uncertainty",
+            "Use Bayesian approaches for uncertainty quantification",
+            "Verify uncertainty propagation through pipeline"
+        ]
+        return fixes
+
+    def run_diagnostic(self, issue_type: str) -> List[str]:
+        """
+        Run diagnostic for specific issue type
+        """
+        if issue_type in self.common_issues:
+            return self.common_issues[issue_type]()
+        else:
+            return ["Issue type not recognized"]
+
+    def comprehensive_diagnostic(self, system_state: Dict) -> Dict:
+        """
+        Run comprehensive diagnostic on multimodal system
+        """
+        diagnostics = {}
+
+        # Check alignment
+        diagnostics['alignment_status'] = self.check_alignment_quality(system_state)
+
+        # Check modality availability
+        diagnostics['modality_availability'] = self.check_modality_health(system_state)
+
+        # Check fusion accuracy
+        diagnostics['fusion_accuracy'] = self.check_fusion_performance(system_state)
+
+        # Check computational performance
+        diagnostics['computational_load'] = self.check_performance_metrics(system_state)
+
+        # Check uncertainty calibration
+        diagnostics['uncertainty_quality'] = self.check_uncertainty_estimation(system_state)
+
+        return diagnostics
+
+    def check_alignment_quality(self, system_state: Dict) -> Dict:
+        """
+        Check quality of cross-modal alignment
+        """
+        # Check temporal alignment
+        vision_ts = system_state.get('vision_timestamp', 0)
+        language_ts = system_state.get('language_timestamp', 0)
+        sensor_ts = system_state.get('sensor_timestamp', 0)
+
+        max_temporal_diff = max(abs(vision_ts - language_ts), abs(vision_ts - sensor_ts), abs(language_ts - sensor_ts))
+
+        return {
+            'max_temporal_diff': max_temporal_diff,
+            'temporal_sync_status': 'OK' if max_temporal_diff < 0.1 else 'ISSUE',  # 100ms threshold
+            'recommendation': 'Check sensor synchronization' if max_temporal_diff >= 0.1 else 'Temporal alignment OK'
+        }
+
+    def check_modality_health(self, system_state: Dict) -> Dict:
+        """
+        Check health of each modality
+        """
+        modalities = ['vision', 'language', 'sensor']
+        health_status = {}
+
+        for modality in modalities:
+            data = system_state.get(f'{modality}_data')
+            if data is not None:
+                # Check for data validity
+                if hasattr(data, 'any') and np.any(np.isnan(data)) if isinstance(data, np.ndarray) else False:
+                    health_status[modality] = {'status': 'ERROR', 'reason': 'Contains NaN values'}
+                else:
+                    health_status[modality] = {'status': 'OK', 'reason': 'Data appears valid'}
+            else:
+                health_status[modality] = {'status': 'MISSING', 'reason': 'No data received'}
+
+        return health_status
+
+    def check_fusion_performance(self, system_state: Dict) -> Dict:
+        """
+        Check fusion performance
+        """
+        # This would check fusion accuracy metrics in a real system
+        # For now, return placeholder results
+        return {
+            'accuracy': system_state.get('fusion_accuracy', 0.85),
+            'consistency': system_state.get('fusion_consistency', 0.90),
+            'performance_status': 'OK' if system_state.get('fusion_accuracy', 0.85) > 0.8 else 'REVIEW'
+        }
+
+    def check_performance_metrics(self, system_state: Dict) -> Dict:
+        """
+        Check computational performance
+        """
+        # Check processing times
+        processing_times = system_state.get('processing_times', {})
+
+        metrics = {
+            'vision_processing_time': processing_times.get('vision', 0),
+            'language_processing_time': processing_times.get('language', 0),
+            'fusion_processing_time': processing_times.get('fusion', 0),
+            'total_processing_time': sum(processing_times.values()) if processing_times else 0
+        }
+
+        # Check if processing is meeting real-time requirements (assuming 30 FPS = 33ms per frame)
+        real_time_requirement = 0.033  # 33ms for 30 FPS
+        meets_real_time = metrics['total_processing_time'] < real_time_requirement
+
+        metrics['meets_real_time'] = meets_real_time
+        metrics['recommendation'] = 'Optimize processing' if not meets_real_time else 'Performance adequate'
+
+        return metrics
+
+    def check_uncertainty_estimation(self, system_state: Dict) -> Dict:
+        """
+        Check uncertainty estimation quality
+        """
+        uncertainties = system_state.get('uncertainties', {})
+
+        # Check if uncertainties are reasonable (not too high or too low)
+        uncertainty_values = [val for val in uncertainties.values() if isinstance(val, (int, float))]
+
+        avg_uncertainty = np.mean(uncertainty_values) if uncertainty_values else 0.5
+        uncertainty_valid = 0.0 <= avg_uncertainty <= 1.0
+
+        return {
+            'average_uncertainty': avg_uncertainty,
+            'uncertainty_valid': uncertainty_valid,
+            'calibration_status': 'NEEDS_CALIBRATION' if avg_uncertainty < 0.1 or avg_uncertainty > 0.9 else 'CALIBRATED'
+        }
+
+# Example usage
+troubleshooter = MultimodalTroubleshooter()
+
+# Example system state for diagnostic
+system_state = {
+    'vision_timestamp': time.time(),
+    'language_timestamp': time.time() - 0.05,  # 50ms delay
+    'sensor_timestamp': time.time() - 0.02,   # 20ms delay
+    'fusion_accuracy': 0.87,
+    'fusion_consistency': 0.89,
+    'processing_times': {
+        'vision': 0.025,
+        'language': 0.015,
+        'fusion': 0.010
+    },
+    'uncertainties': {
+        'vision': 0.2,
+        'language': 0.3,
+        'sensor': 0.1
+    }
+}
+
+diagnostics = troubleshooter.comprehensive_diagnostic(system_state)
+print("Multimodal System Diagnostics:")
+for category, result in diagnostics.items():
+    print(f"  {category}: {result}")
+```
+
+## Summary
+
+Multimodal learning systems form the perceptual foundation of intelligent humanoid robots, enabling them to understand and interact with their environment through multiple sensory channels. This chapter explored vision-language models for perception, cognitive planning systems for complex task execution, and advanced sensor fusion architectures that combine information from multiple sources. The integration of these technologies allows humanoid robots to operate robustly in dynamic environments by leveraging the complementary strengths of different sensory modalities. Proper handling of uncertainty, efficient processing architectures, and real-time performance optimization ensure that these systems meet the demanding requirements of humanoid robotics applications.
+
+## Exercises
+
+1. Implement a multimodal transformer for vision-language-action integration in humanoid robots
+2. Design a sensor fusion architecture that handles modality dropout gracefully
+3. Create an embodied learning system that adapts to new tasks with minimal examples
+4. Develop uncertainty-aware decision making for multimodal perception systems
+5. Optimize multimodal processing for real-time humanoid robot control

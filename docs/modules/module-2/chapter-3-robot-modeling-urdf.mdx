@@ -1,0 +1,976 @@
+---
+title: "Chapter 3: Services and Actions in ROS 2"
+description: "Understanding services and actions for humanoid robot control"
+hide_table_of_contents: false
+keywords: ["ROS 2 Services", "Actions", "Synchronous Communication", "Long-Running Tasks", "Robot Control"]
+sidebar_position: 3
+---
+
+# Chapter 3: Services and Actions in ROS 2
+
+## Learning Objectives
+- Implement ROS 2 services for synchronous communication
+- Create and manage ROS 2 actions for long-running tasks
+- Design service and action interfaces for humanoid robots
+- Apply best practices for request-response and goal-oriented communication
+- Optimize service and action performance for real-time systems
+
+## Introduction to Services
+
+Services in ROS 2 provide synchronous request-response communication between nodes. A service client sends a request and waits for a response from the service server. This is ideal for operations that have a definite start and end, such as configuration changes, triggering behaviors, or querying robot state.
+
+### Service Architecture
+
+In the service pattern:
+- **Service Server**: Provides the service and responds to requests
+- **Service Client**: Makes requests and waits for responses
+- **Service Type**: Defines the request and response message structures
+
+### Basic Service Implementation
+
+```python
+import rclpy
+from rclpy.node import Node
+from example_interfaces.srv import Trigger, AddTwoInts
+
+class RobotServiceServer(Node):
+    def __init__(self):
+        super().__init__('robot_service_server')
+
+        # Create a simple trigger service
+        self.trigger_service = self.create_service(
+            Trigger,
+            'robot_trigger',
+            self.trigger_callback
+        )
+
+        # Create a calculation service
+        self.calc_service = self.create_service(
+            AddTwoInts,
+            'add_two_integers',
+            self.add_callback
+        )
+
+        self.get_logger().info('Robot service server initialized')
+
+    def trigger_callback(self, request, response):
+        self.get_logger().info('Received trigger request')
+
+        # Perform some operation
+        self.get_logger().info('Executing triggered operation...')
+
+        # Set response
+        response.success = True
+        response.message = 'Operation completed successfully'
+
+        return response
+
+    def add_callback(self, request, response):
+        self.get_logger().info(f'Received request: {request.a} + {request.b}')
+
+        # Perform calculation
+        result = request.a + request.b
+
+        # Set response
+        response.sum = result
+        self.get_logger().info(f'Sending response: {result}')
+
+        return response
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    service_server = RobotServiceServer()
+
+    try:
+        rclpy.spin(service_server)
+    except KeyboardInterrupt:
+        service_server.get_logger().info('Interrupted, shutting down...')
+    finally:
+        service_server.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Service Client Implementation
+
+```python
+import rclpy
+from rclpy.node import Node
+from example_interfaces.srv import Trigger, AddTwoInts
+
+class RobotServiceClient(Node):
+    def __init__(self):
+        super().__init__('robot_service_client')
+
+        # Create clients for the services
+        self.trigger_client = self.create_client(Trigger, 'robot_trigger')
+        self.calc_client = self.create_client(AddTwoInts, 'add_two_integers')
+
+        # Wait for services to be available
+        while not self.trigger_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Trigger service not available, waiting again...')
+
+        while not self.calc_client.wait_for_service(timeout_sec=1.0):
+            self.get_logger().info('Calculation service not available, waiting again...')
+
+        # Timer to periodically call services
+        self.timer = self.create_timer(2.0, self.call_services)
+
+    def call_services(self):
+        # Call trigger service
+        trigger_request = Trigger.Request()
+        future = self.trigger_client.call_async(trigger_request)
+        future.add_done_callback(self.trigger_response_callback)
+
+        # Call calculation service
+        calc_request = AddTwoInts.Request()
+        calc_request.a = 10
+        calc_request.b = 20
+        future_calc = self.calc_client.call_async(calc_request)
+        future_calc.add_done_callback(self.calc_response_callback)
+
+    def trigger_response_callback(self, future):
+        try:
+            response = future.result()
+            if response.success:
+                self.get_logger().info(f'Trigger succeeded: {response.message}')
+            else:
+                self.get_logger().error(f'Trigger failed: {response.message}')
+        except Exception as e:
+            self.get_logger().error(f'Service call failed: {e}')
+
+    def calc_response_callback(self, future):
+        try:
+            response = future.result()
+            self.get_logger().info(f'Calculation result: {response.sum}')
+        except Exception as e:
+            self.get_logger().error(f'Calculation service call failed: {e}')
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    service_client = RobotServiceClient()
+
+    try:
+        rclpy.spin(service_client)
+    except KeyboardInterrupt:
+        service_client.get_logger().info('Interrupted, shutting down...')
+    finally:
+        service_client.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Custom Service Types
+
+For humanoid robotics applications, you may need custom service types. First, create a service definition file:
+
+`srv/ExecuteBehavior.srv`:
+```
+# Request
+string behavior_name
+float64[] parameters
+bool blocking_execution
+
+# Response
+bool success
+string message
+float64 execution_time
+```
+
+Then implement it in your code:
+
+```python
+from rclpy.node import Node
+from your_robot_interfaces.srv import ExecuteBehavior  # This would be your custom service
+import time
+
+class BehaviorExecutionServer(Node):
+    def __init__(self):
+        super().__init__('behavior_execution_server')
+
+        self.behavior_service = self.create_service(
+            ExecuteBehavior,
+            'execute_behavior',
+            self.execute_behavior_callback
+        )
+
+        self.get_logger().info('Behavior execution service ready')
+
+    def execute_behavior_callback(self, request, response):
+        start_time = time.time()
+
+        self.get_logger().info(f'Executing behavior: {request.behavior_name}')
+        self.get_logger().info(f'Parameters: {request.parameters}')
+
+        # Execute the requested behavior
+        success = self.execute_behavior_logic(request.behavior_name, request.parameters)
+
+        execution_time = time.time() - start_time
+
+        # Set response
+        response.success = success
+        response.execution_time = execution_time
+
+        if success:
+            response.message = f'Behavior {request.behavior_name} completed successfully in {execution_time:.2f}s'
+            self.get_logger().info(response.message)
+        else:
+            response.message = f'Behavior {request.behavior_name} failed after {execution_time:.2f}s'
+            self.get_logger().error(response.message)
+
+        return response
+
+    def execute_behavior_logic(self, behavior_name, parameters):
+        # Implement actual behavior execution logic
+        # This is a simplified example
+        if behavior_name == 'wave_hello':
+            # Simulate waving behavior
+            self.get_logger().info('Executing wave hello behavior')
+            time.sleep(2)  # Simulate execution time
+            return True
+        elif behavior_name == 'walk_forward':
+            # Simulate walking behavior
+            self.get_logger().info('Executing walk forward behavior')
+            time.sleep(3)  # Simulate execution time
+            return True
+        else:
+            self.get_logger().error(f'Unknown behavior: {behavior_name}')
+            return False
+```
+
+## Introduction to Actions
+
+Actions are used for long-running tasks that provide feedback and can be canceled. They're ideal for humanoid robot behaviors like walking, manipulation, or navigation that take time to complete.
+
+### Action Architecture
+
+An action consists of:
+- **Goal**: The desired outcome
+- **Feedback**: Intermediate status updates
+- **Result**: Final outcome when completed
+
+### Basic Action Server Implementation
+
+```python
+import rclpy
+from rclpy.action import ActionServer
+from rclpy.node import Node
+from rclpy.callback_groups import ReentrantCallbackGroup
+from rclpy.executors import MultiThreadedExecutor
+
+from control_msgs.action import FollowJointTrajectory
+from trajectory_msgs.msg import JointTrajectoryPoint
+from builtin_interfaces.msg import Duration
+
+class JointTrajectoryActionServer(Node):
+    def __init__(self):
+        super().__init__('joint_trajectory_action_server')
+
+        # Create action server
+        self._action_server = ActionServer(
+            self,
+            FollowJointTrajectory,
+            'follow_joint_trajectory',
+            self.execute_trajectory_callback,
+            callback_group=ReentrantCallbackGroup()
+        )
+
+        self.get_logger().info('Joint trajectory action server ready')
+
+    def execute_trajectory_callback(self, goal_handle):
+        self.get_logger().info('Received trajectory execution request')
+
+        # Get the trajectory from the goal
+        trajectory = goal_handle.request.trajectory
+        self.get_logger().info(f'Executing trajectory with {len(trajectory.points)} points')
+
+        # Execute the trajectory
+        feedback = FollowJointTrajectory.Feedback()
+        result = FollowJointTrajectory.Result()
+
+        # Process each point in the trajectory
+        for i, point in enumerate(trajectory.points):
+            # Check if the goal has been canceled
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.error_code = result.PATH_TOLERANCE_VIOLATED
+                self.get_logger().info('Trajectory execution canceled')
+                return result
+
+            # Simulate moving to the trajectory point
+            # In a real system, this would involve actual robot control
+            self.move_to_point(point)
+
+            # Prepare feedback
+            feedback.actual.positions = point.positions
+            feedback.actual.velocities = point.velocities
+            feedback.actual.time_from_start = point.time_from_start
+
+            # Publish feedback
+            goal_handle.publish_feedback(feedback)
+
+            self.get_logger().info(f'Completed trajectory point {i+1}/{len(trajectory.points)}')
+
+            # Small delay to simulate execution time
+            self.get_clock().sleep_for(rclpy.duration.Duration(seconds=0.01))
+
+        # Check if the goal was canceled during execution
+        if goal_handle.is_cancel_requested:
+            goal_handle.canceled()
+            result.error_code = result.PATH_TOLERANCE_VIOLATED
+            self.get_logger().info('Trajectory execution canceled')
+            return result
+
+        # Complete successfully
+        goal_handle.succeed()
+        result.error_code = result.SUCCESSFUL
+        result.error_string = 'Trajectory executed successfully'
+
+        self.get_logger().info('Trajectory execution completed successfully')
+        return result
+
+    def move_to_point(self, point):
+        # Simulate moving the robot to the specified point
+        # In a real system, this would interface with the actual robot controllers
+        self.get_logger().debug(f'Moving to position: {point.positions}')
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    action_server = JointTrajectoryActionServer()
+
+    # Use multi-threaded executor to handle concurrent requests
+    executor = MultiThreadedExecutor(num_threads=4)
+    executor.add_node(action_server)
+
+    try:
+        executor.spin()
+    except KeyboardInterrupt:
+        action_server.get_logger().info('Interrupted, shutting down...')
+    finally:
+        action_server.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+### Action Client Implementation
+
+```python
+import rclpy
+from rclpy.action import ActionClient
+from rclpy.node import Node
+
+from control_msgs.action import FollowJointTrajectory
+from trajectory_msgs.msg import JointTrajectory, JointTrajectoryPoint
+from builtin_interfaces.msg import Duration
+
+class JointTrajectoryActionClient(Node):
+    def __init__(self):
+        super().__init__('joint_trajectory_action_client')
+
+        # Create action client
+        self._action_client = ActionClient(
+            self,
+            FollowJointTrajectory,
+            'follow_joint_trajectory'
+        )
+
+    def send_trajectory_goal(self, joint_names, positions_list, times_list):
+        # Wait for the action server to be available
+        self.get_logger().info('Waiting for action server...')
+        self._action_client.wait_for_server()
+
+        # Create the goal
+        goal_msg = FollowJointTrajectory.Goal()
+
+        # Build the trajectory
+        trajectory = JointTrajectory()
+        trajectory.joint_names = joint_names
+
+        for positions, duration_sec in zip(positions_list, times_list):
+            point = JointTrajectoryPoint()
+            point.positions = positions
+            point.time_from_start = Duration(sec=duration_sec, nanosec=0)
+            trajectory.points.append(point)
+
+        goal_msg.trajectory = trajectory
+
+        # Send the goal
+        self.get_logger().info('Sending trajectory goal...')
+        send_goal_future = self._action_client.send_goal_async(
+            goal_msg,
+            feedback_callback=self.feedback_callback
+        )
+
+        send_goal_future.add_done_callback(self.goal_response_callback)
+
+    def goal_response_callback(self, future):
+        goal_handle = future.result()
+        if not goal_handle.accepted:
+            self.get_logger().info('Goal rejected by server')
+            return
+
+        self.get_logger().info('Goal accepted by server')
+        get_result_future = goal_handle.get_result_async()
+        get_result_future.add_done_callback(self.get_result_callback)
+
+    def feedback_callback(self, feedback_msg):
+        self.get_logger().info(f'Feedback: {feedback_msg.feedback.actual.positions}')
+
+    def get_result_callback(self, future):
+        result = future.result().result
+        self.get_logger().info(f'Result: {result.error_string}')
+
+def main(args=None):
+    rclpy.init(args=args)
+
+    action_client = JointTrajectoryActionClient()
+
+    # Example: Send a simple trajectory
+    joint_names = ['joint1', 'joint2', 'joint3']
+    positions_list = [
+        [0.0, 0.0, 0.0],  # Start position
+        [0.5, 0.5, 0.5],  # Middle position
+        [1.0, 1.0, 1.0]   # End position
+    ]
+    times_list = [0, 2, 4]  # Times in seconds
+
+    action_client.send_trajectory_goal(joint_names, positions_list, times_list)
+
+    try:
+        rclpy.spin(action_client)
+    except KeyboardInterrupt:
+        action_client.get_logger().info('Interrupted, shutting down...')
+    finally:
+        action_client.destroy_node()
+        rclpy.shutdown()
+
+if __name__ == '__main__':
+    main()
+```
+
+## Advanced Service Concepts
+
+### Service with Timeout and Retry Logic
+
+```python
+import asyncio
+from rclpy.qos import qos_profile_services_default
+
+class RobustServiceClient(Node):
+    def __init__(self):
+        super().__init__('robust_service_client')
+
+        self.service_client = self.create_client(
+            Trigger,
+            'reliable_trigger',
+            qos_profile=qos_profile_services_default
+        )
+
+        # Configuration
+        self.max_retries = 3
+        self.timeout_seconds = 5.0
+
+    async def call_service_with_retry(self, request):
+        """Call service with retry logic"""
+        for attempt in range(self.max_retries):
+            try:
+                # Check if service is available
+                if not self.service_client.service_is_ready():
+                    self.get_logger().info(f'Service not ready, waiting... (attempt {attempt + 1})')
+                    await self.service_client.wait_for_service()
+
+                # Call the service
+                future = self.service_client.call_async(request)
+
+                # Wait for response with timeout
+                timer = self.create_timer(self.timeout_seconds, lambda: future.cancel())
+
+                try:
+                    response = await future
+                    self.destroy_timer(timer)
+                    self.get_logger().info(f'Service call succeeded on attempt {attempt + 1}')
+                    return response
+                except asyncio.CancelledError:
+                    self.get_logger().warning(f'Service call timed out on attempt {attempt + 1}')
+                    continue
+                finally:
+                    if timer.timer_period_ns > 0:  # Check if timer is still active
+                        self.destroy_timer(timer)
+
+            except Exception as e:
+                self.get_logger().error(f'Service call failed on attempt {attempt + 1}: {e}')
+                if attempt == self.max_retries - 1:
+                    raise
+                # Wait before retry
+                self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1.0))
+
+        raise RuntimeError(f'Service call failed after {self.max_retries} attempts')
+
+    def sync_call_with_retry(self, request):
+        """Synchronous version of the retry logic"""
+        for attempt in range(self.max_retries):
+            if not self.service_client.wait_for_service(timeout_sec=1.0):
+                self.get_logger().warning(f'Service not available on attempt {attempt + 1}')
+                if attempt == self.max_retries - 1:
+                    raise RuntimeError('Service not available')
+                continue
+
+            try:
+                future = self.service_client.call_async(request)
+                rclpy.spin_until_future_complete(self, future, timeout_sec=self.timeout_seconds)
+
+                if future.done():
+                    response = future.result()
+                    self.get_logger().info(f'Service call succeeded on attempt {attempt + 1}')
+                    return response
+                else:
+                    self.get_logger().warning(f'Service call timed out on attempt {attempt + 1}')
+
+            except Exception as e:
+                self.get_logger().error(f'Service call failed on attempt {attempt + 1}: {e}')
+
+            if attempt < self.max_retries - 1:
+                # Wait before retry
+                self.get_clock().sleep_for(rclpy.duration.Duration(seconds=1.0))
+
+        raise RuntimeError(f'Service call failed after {self.max_retries} attempts')
+```
+
+## Advanced Action Concepts
+
+### Action with Preemption and Conditional Goals
+
+```python
+from rclpy.action import ActionServer, CancelResponse
+from rclpy.executors import MultiThreadedExecutor
+from threading import Lock
+
+class ConditionalActionServer(Node):
+    def __init__(self):
+        super().__init__('conditional_action_server')
+
+        # Create action server with custom cancel callback
+        self._action_server = ActionServer(
+            self,
+            FollowJointTrajectory,
+            'conditional_trajectory',
+            self.execute_callback,
+            cancel_callback=self.cancel_callback,
+            goal_callback=self.goal_callback
+        )
+
+        # State management
+        self.current_goal = None
+        self.state_lock = Lock()
+        self.robot_busy = False
+
+    def goal_callback(self, goal_request):
+        """Called when a new goal is received"""
+        self.get_logger().info('Received new goal request')
+
+        # Check if robot is available
+        with self.state_lock:
+            if self.robot_busy:
+                self.get_logger().warn('Robot is busy, rejecting goal')
+                return GoalResponse.REJECT
+
+        # Validate goal
+        if self.validate_trajectory(goal_request.trajectory):
+            self.get_logger().info('Goal accepted')
+            return GoalResponse.ACCEPT
+        else:
+            self.get_logger().warn('Goal rejected - invalid trajectory')
+            return GoalResponse.REJECT
+
+    def cancel_callback(self, goal_handle):
+        """Called when a goal cancellation is requested"""
+        self.get_logger().info('Received cancel request')
+        return CancelResponse.ACCEPT
+
+    def validate_trajectory(self, trajectory):
+        """Validate trajectory before accepting"""
+        if not trajectory.points:
+            return False
+
+        # Check for valid joint names
+        if not trajectory.joint_names:
+            return False
+
+        # Check that all points have the same number of positions as joint names
+        for point in trajectory.points:
+            if len(point.positions) != len(trajectory.joint_names):
+                return False
+
+        return True
+
+    def execute_callback(self, goal_handle):
+        """Execute the trajectory with conditional logic"""
+        self.get_logger().info('Executing trajectory goal')
+
+        with self.state_lock:
+            self.robot_busy = True
+            self.current_goal = goal_handle
+
+        try:
+            trajectory = goal_handle.request.trajectory
+            feedback = FollowJointTrajectory.Feedback()
+            result = FollowJointTrajectory.Result()
+
+            for i, point in enumerate(trajectory.points):
+                # Check for cancellation
+                if goal_handle.is_cancel_requested:
+                    goal_handle.canceled()
+                    result.error_code = result.INVALID_GOAL
+                    self.get_logger().info('Goal canceled during execution')
+                    return result
+
+                # Check for safety conditions
+                if not self.check_safety_conditions():
+                    goal_handle.abort()
+                    result.error_code = result.SAFETY_FAULT
+                    self.get_logger().error('Safety condition violated, aborting')
+                    return result
+
+                # Execute the point
+                success = self.execute_trajectory_point(point)
+
+                if not success:
+                    goal_handle.abort()
+                    result.error_code = result.PATH_TOLERANCE_VIOLATED
+                    self.get_logger().error('Failed to execute trajectory point')
+                    return result
+
+                # Publish feedback
+                feedback.actual.positions = point.positions
+                feedback.actual.velocities = point.velocities
+                goal_handle.publish_feedback(feedback)
+
+                self.get_logger().info(f'Completed point {i+1}/{len(trajectory.points)}')
+
+            # Check once more before completion
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.error_code = result.INVALID_GOAL
+            else:
+                goal_handle.succeed()
+                result.error_code = result.SUCCESSFUL
+                result.error_string = f'Executed {len(trajectory.points)} points successfully'
+
+        finally:
+            with self.state_lock:
+                self.robot_busy = False
+                self.current_goal = None
+
+        return result
+
+    def check_safety_conditions(self):
+        """Check safety conditions before continuing"""
+        # In a real system, this would check sensor data, limits, etc.
+        return True
+
+    def execute_trajectory_point(self, point):
+        """Execute a single trajectory point"""
+        # Simulate execution
+        self.get_logger().debug(f'Executing point: {point.positions}')
+        return True
+```
+
+## Service and Action Patterns for Humanoid Robots
+
+### Robot State Query Service
+
+```python
+# srv/GetRobotState.srv
+# Empty request
+# ---
+# bool is_connected
+# bool is_calibrated
+# string[] joint_names
+# float64[] joint_positions
+# float64[] joint_velocities
+# string current_behavior
+# float64 battery_level
+
+from your_interfaces.srv import GetRobotState
+
+class RobotStateService(Node):
+    def __init__(self):
+        super().__init__('robot_state_service')
+
+        self.state_service = self.create_service(
+            GetRobotState,
+            'get_robot_state',
+            self.get_state_callback
+        )
+
+        # Simulate robot state
+        self.joint_positions = [0.0, 0.1, 0.2, 0.3]
+        self.joint_velocities = [0.0, 0.0, 0.0, 0.0]
+        self.current_behavior = 'idle'
+        self.battery_level = 85.5
+
+    def get_state_callback(self, request, response):
+        self.get_logger().info('Providing robot state')
+
+        response.is_connected = True
+        response.is_calibrated = True
+        response.joint_names = ['hip_left', 'knee_left', 'hip_right', 'knee_right']
+        response.joint_positions = self.joint_positions.copy()
+        response.joint_velocities = self.joint_velocities.copy()
+        response.current_behavior = self.current_behavior
+        response.battery_level = self.battery_level
+
+        return response
+```
+
+### Humanoid Walking Action
+
+```python
+# action/Walk.action
+# # Goal
+# float64[] destination  # [x, y, theta]
+# float64 step_height
+# string walking_type  # 'dynamic', 'static', 'trot', etc.
+# ---
+# # Result
+# bool success
+# string message
+# float64 execution_time
+# ---
+# # Feedback
+# float64[] current_position  # [x, y, theta]
+# float64[] target_position
+# string status  # 'walking', 'adjusting', 'stopping', etc.
+# float64 progress  # 0.0 to 1.0
+
+from your_interfaces.action import Walk
+
+class WalkingActionServer(Node):
+    def __init__(self):
+        super().__init__('walking_action_server')
+
+        self._action_server = ActionServer(
+            self,
+            Walk,
+            'walk_to_destination',
+            self.execute_walk_callback
+        )
+
+    def execute_walk_callback(self, goal_handle):
+        self.get_logger().info('Starting walking action')
+
+        destination = goal_handle.request.destination
+        step_height = goal_handle.request.step_height
+        walking_type = goal_handle.request.walking_type
+
+        feedback = Walk.Feedback()
+        result = Walk.Result()
+
+        # Initialize walking
+        current_pos = self.get_current_position()
+        start_time = self.get_clock().now()
+
+        while not self.reached_destination(current_pos, destination):
+            # Check for cancellation
+            if goal_handle.is_cancel_requested:
+                goal_handle.canceled()
+                result.success = False
+                result.message = 'Walking canceled'
+                return result
+
+            # Update current position
+            current_pos = self.get_current_position()
+
+            # Generate next step
+            next_step = self.calculate_next_step(current_pos, destination, walking_type)
+
+            # Execute the step
+            success = self.execute_step(next_step, step_height)
+
+            if not success:
+                goal_handle.abort()
+                result.success = False
+                result.message = 'Failed to execute walking step'
+                return result
+
+            # Update feedback
+            feedback.current_position = current_pos
+            feedback.target_position = destination
+            feedback.status = 'walking'
+            feedback.progress = self.calculate_progress(current_pos, destination)
+
+            goal_handle.publish_feedback(feedback)
+
+            # Small delay
+            self.get_clock().sleep_for(rclpy.duration.Duration(seconds=0.1))
+
+        # Success
+        goal_handle.succeed()
+        result.success = True
+        result.message = 'Successfully walked to destination'
+        result.execution_time = (self.get_clock().now() - start_time).nanoseconds * 1e-9
+
+        return result
+
+    def get_current_position(self):
+        # Get current robot position from localization
+        return [0.0, 0.0, 0.0]  # [x, y, theta]
+
+    def reached_destination(self, current, destination, tolerance=0.1):
+        # Check if current position is close enough to destination
+        dx = current[0] - destination[0]
+        dy = current[1] - destination[1]
+        distance = (dx*dx + dy*dy)**0.5
+        return distance < tolerance
+
+    def calculate_next_step(self, current_pos, destination, walking_type):
+        # Calculate next walking step based on current position and destination
+        return [0.1, 0.0, 0.0]  # Simplified example
+
+    def execute_step(self, step, step_height):
+        # Execute the actual walking step
+        return True  # Simplified example
+
+    def calculate_progress(self, current_pos, destination):
+        # Calculate progress as a value between 0.0 and 1.0
+        return 0.5  # Simplified example
+```
+
+## Performance Considerations
+
+### Efficient Service Handling
+
+```python
+from rclpy.qos import QoSProfile, QoSDurabilityPolicy
+from threading import ThreadPoolExecutor
+import concurrent.futures
+
+class HighPerformanceServiceServer(Node):
+    def __init__(self):
+        super().__init__('high_performance_service_server')
+
+        # Use a thread pool for CPU-intensive operations
+        self.executor = ThreadPoolExecutor(max_workers=4)
+
+        self.complex_service = self.create_service(
+            AddTwoInts,
+            'complex_calculation',
+            self.complex_calculation_callback,
+            qos_profile=QoSProfile(depth=10, durability=QoSDurabilityPolicy.VOLATILE)
+        )
+
+    def complex_calculation_callback(self, request, response):
+        """Handle complex calculation using thread pool"""
+        # For CPU-intensive operations, use a thread pool
+        def complex_operation(a, b):
+            # Simulate complex calculation
+            import time
+            time.sleep(0.1)  # Simulate computation time
+            return a + b + (a * b)  # Complex operation
+
+        # Submit to thread pool
+        future = self.executor.submit(complex_operation, request.a, request.b)
+        result = future.result()
+
+        response.sum = result
+        return response
+
+    def destroy_node(self):
+        """Clean up resources"""
+        self.executor.shutdown(wait=True)
+        super().destroy_node()
+```
+
+## Best Practices
+
+### Service Best Practices
+
+1. **Keep services fast**: Services should return quickly; use actions for long-running operations
+2. **Validate inputs**: Always validate service request parameters
+3. **Handle errors gracefully**: Return appropriate error codes/messages
+4. **Use appropriate QoS**: Services have their own QoS profile
+5. **Avoid blocking**: Don't block service callbacks; use threading if needed
+
+### Action Best Practices
+
+1. **Use actions for long-running tasks**: Any operation taking more than ~100ms should be an action
+2. **Provide meaningful feedback**: Update feedback regularly during execution
+3. **Handle cancellation**: Check for cancellation requests during execution
+4. **Implement proper state management**: Track action state and handle concurrent goals
+5. **Use appropriate goal validation**: Validate goals in goal_callback
+
+### Common Patterns
+
+```python
+class BestPracticeExample(Node):
+    def __init__(self):
+        super().__init__('best_practice_example')
+
+        # Service for quick queries
+        self.query_service = self.create_service(
+            GetRobotState,
+            'query_robot_state',
+            self.query_callback
+        )
+
+        # Action for long-running operations
+        self.navigation_action = ActionServer(
+            self,
+            NavigateToPose,
+            'navigate_to_pose',
+            self.navigate_callback
+        )
+
+    def query_callback(self, request, response):
+        """Fast service - returns quickly"""
+        try:
+            # Quick state retrieval
+            response.state = self.get_robot_state()
+            response.success = True
+        except Exception as e:
+            response.success = False
+            response.error = str(e)
+
+        return response
+
+    def navigate_callback(self, goal_handle):
+        """Long-running action with feedback and cancellation"""
+        try:
+            # Validate goal
+            if not self.validate_navigation_goal(goal_handle.request.pose):
+                goal_handle.abort()
+                result = NavigateToPose.Result()
+                result.success = False
+                result.message = "Invalid navigation goal"
+                return result
+
+            # Execute with feedback and cancellation checks
+            result = self.execute_navigation_with_feedback(goal_handle)
+            return result
+
+        except Exception as e:
+            goal_handle.abort()
+            result = NavigateToPose.Result()
+            result.success = False
+            result.message = f"Navigation failed: {str(e)}"
+            return result
+```
+
+## Summary
+
+Services and actions are essential for creating robust humanoid robot applications in ROS 2. Services provide synchronous request-response communication for quick operations, while actions handle long-running tasks with feedback and cancellation capabilities. Understanding when to use each and implementing them correctly is crucial for creating responsive and reliable humanoid robot systems.
+
+## Exercises
+
+1. Implement a service that allows external systems to query the robot's current configuration and state.
+2. Create an action that controls the robot's walking behavior with real-time feedback and cancellation support.
+3. Design a service architecture for calibrating different parts of a humanoid robot with error handling and validation.

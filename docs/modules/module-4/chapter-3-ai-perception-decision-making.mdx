@@ -1,0 +1,2142 @@
+---
+title: "Chapter 3: AI Perception and Decision Making"
+description: "Vision-language-action systems and cognitive planning for humanoid robots"
+hide_table_of_contents: false
+keywords: ["AI Perception", "Decision Making", "Vision-Language-Action", "Cognitive Planning", "Humanoid Robotics", "Machine Learning"]
+sidebar_position: 3
+---
+
+# Chapter 3: AI Perception and Decision Making
+
+## Learning Objectives
+- Understand vision-language-action integration for humanoid robots
+- Implement cognitive planning systems for complex tasks
+- Design perception-action loops for real-time decision making
+- Integrate large language models for natural human-robot interaction
+- Apply reinforcement learning for adaptive behavior
+
+## Introduction to AI Perception Systems
+
+AI perception systems for humanoid robots represent the integration of multiple sensory modalities with advanced machine learning techniques to enable human-like understanding and interaction with the environment. Unlike traditional robotics approaches that rely on pre-programmed behaviors, modern AI perception systems leverage deep learning to process visual, auditory, and tactile information in real-time, enabling robots to adapt to novel situations and interact naturally with humans.
+
+### Vision-Language Integration
+
+Vision-language models have revolutionized how humanoid robots perceive and understand their environment. By combining visual perception with natural language processing, robots can understand complex commands, recognize objects in context, and engage in meaningful interactions with humans.
+
+```python
+import torch
+import torch.nn as nn
+import torchvision.transforms as transforms
+import clip
+from PIL import Image
+import numpy as np
+import openai
+from typing import List, Dict, Tuple, Any
+
+class VisionLanguagePerception:
+    def __init__(self, clip_model_name: str = "ViT-B/32"):
+        """
+        Initialize vision-language perception system using CLIP
+
+        Args:
+            clip_model_name: Name of the CLIP model to use
+        """
+        # Load pre-trained CLIP model
+        self.device = "cuda" if torch.cuda.is_available() else "cpu"
+        self.clip_model, self.clip_preprocess = clip.load(clip_model_name, device=self.device)
+        self.clip_model.eval()
+
+        # Text and image encoders
+        self.text_encoder = self.clip_model.encode_text
+        self.image_encoder = self.clip_model.encode_image
+
+        # Transform for image preprocessing
+        self.image_transform = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=[0.485, 0.456, 0.406], std=[0.229, 0.224, 0.225])
+        ])
+
+    def encode_text(self, text: str) -> torch.Tensor:
+        """
+        Encode text using CLIP
+
+        Args:
+            text: Input text to encode
+
+        Returns:
+            Encoded text tensor
+        """
+        text_tokens = clip.tokenize([text]).to(self.device)
+        with torch.no_grad():
+            text_features = self.text_encoder(text_tokens)
+        return text_features
+
+    def encode_image(self, image: np.ndarray) -> torch.Tensor:
+        """
+        Encode image using CLIP
+
+        Args:
+            image: Input image (numpy array)
+
+        Returns:
+            Encoded image tensor
+        """
+        # Convert numpy array to PIL Image if needed
+        if isinstance(image, np.ndarray):
+            if image.dtype == np.uint8:
+                image = Image.fromarray(image)
+            else:
+                # Assume it's a float array in range [0,1], convert to uint8
+                image = Image.fromarray((image * 255).astype(np.uint8))
+
+        # Preprocess image
+        image_input = self.clip_preprocess(image).unsqueeze(0).to(self.device)
+
+        with torch.no_grad():
+            image_features = self.image_encoder(image_input)
+        return image_features
+
+    def compute_similarity(self, image: np.ndarray, text: str) -> float:
+        """
+        Compute similarity between image and text
+
+        Args:
+            image: Input image
+            text: Input text
+
+        Returns:
+            Similarity score
+        """
+        image_features = self.encode_image(image)
+        text_features = self.encode_text(text)
+
+        # Normalize features
+        image_features = image_features / image_features.norm(dim=-1, keepdim=True)
+        text_features = text_features / text_features.norm(dim=-1, keepdim=True)
+
+        # Compute cosine similarity
+        similarity = torch.mm(image_features, text_features.T).item()
+        return similarity
+
+    def classify_object(self, image: np.ndarray, candidates: List[str]) -> Tuple[str, float]:
+        """
+        Classify object in image from a list of candidates
+
+        Args:
+            image: Input image
+            candidates: List of possible object classes
+
+        Returns:
+            Tuple of (best_match, confidence)
+        """
+        # Encode all candidate texts
+        text_tokens = clip.tokenize(candidates).to(self.device)
+        with torch.no_grad():
+            text_features = self.text_encoder(text_tokens)
+
+        # Encode image
+        image_features = self.encode_image(image)
+
+        # Compute similarities
+        logits_per_image, logits_per_text = self.clip_model(image_features, text_tokens)
+        probs = logits_per_image.softmax(dim=-1).cpu().numpy()
+
+        # Get best match
+        best_idx = np.argmax(probs)
+        best_match = candidates[best_idx]
+        confidence = probs[0][best_idx]
+
+        return best_match, confidence
+
+    def detect_objects_with_descriptions(self, image: np.ndarray,
+                                      descriptions: List[str]) -> List[Tuple[str, float]]:
+        """
+        Detect multiple objects with their descriptions
+
+        Args:
+            image: Input image
+            descriptions: List of object descriptions
+
+        Returns:
+            List of (description, confidence) tuples
+        """
+        results = []
+        for desc in descriptions:
+            similarity = self.compute_similarity(image, desc)
+            results.append((desc, similarity))
+
+        # Sort by confidence
+        results.sort(key=lambda x: x[1], reverse=True)
+        return results
+
+# Example usage
+vl_perception = VisionLanguagePerception()
+
+# Example image and text
+sample_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)  # Placeholder
+object_candidates = ["a red apple", "a blue cup", "a wooden table", "a person sitting"]
+
+# Classify object
+best_match, confidence = vl_perception.classify_object(sample_image, object_candidates)
+print(f"Best match: {best_match} (confidence: {confidence:.3f})")
+```
+
+### Advanced Vision-Language Models
+
+```python
+class AdvancedVisionLanguageSystem:
+    def __init__(self):
+        """
+        Advanced vision-language system with multiple capabilities
+        """
+        self.vision_language_model = VisionLanguagePerception()
+        self.scene_understanding = SceneUnderstandingModule()
+        self.action_planning = ActionPlanningModule()
+        self.dialogue_manager = DialogueManager()
+
+    def perceive_and_understand(self, image: np.ndarray, context: str = "") -> Dict:
+        """
+        Comprehensive perception and understanding of scene
+
+        Args:
+            image: Input image from robot's camera
+            context: Additional context for understanding
+
+        Returns:
+            Dictionary containing perception results
+        """
+        results = {}
+
+        # Object detection and classification
+        objects = self.scene_understanding.detect_objects(image)
+        results['objects'] = objects
+
+        # Scene description
+        scene_description = self.scene_understanding.describe_scene(image, context)
+        results['scene_description'] = scene_description
+
+        # Spatial relationships
+        relationships = self.scene_understanding.analyze_relationships(objects)
+        results['relationships'] = relationships
+
+        # Action possibilities
+        possible_actions = self.action_planning.get_possible_actions(image, objects)
+        results['possible_actions'] = possible_actions
+
+        return results
+
+    def respond_to_command(self, command: str, image: np.ndarray) -> Dict:
+        """
+        Respond to natural language command with perception and action
+
+        Args:
+            command: Natural language command
+            image: Current scene image
+
+        Returns:
+            Dictionary containing response and action plan
+        """
+        # Parse command
+        parsed_command = self.dialogue_manager.parse_command(command)
+
+        # Understand scene in context of command
+        scene_analysis = self.perceive_and_understand(image, command)
+
+        # Generate response
+        response = self.dialogue_manager.generate_response(parsed_command, scene_analysis)
+
+        # Plan appropriate action
+        action_plan = self.action_planning.plan_action(parsed_command, scene_analysis)
+
+        return {
+            'response': response,
+            'action_plan': action_plan,
+            'confidence': self.calculate_confidence(scene_analysis, action_plan)
+        }
+
+    def calculate_confidence(self, scene_analysis: Dict, action_plan: Dict) -> float:
+        """
+        Calculate confidence in the perception and action plan
+        """
+        # Confidence based on object detection confidence
+        obj_confidence = np.mean([obj['confidence'] for obj in scene_analysis.get('objects', [])]) if scene_analysis.get('objects') else 0.0
+
+        # Confidence based on action plan feasibility
+        action_confidence = 1.0 if action_plan.get('feasible', True) else 0.3
+
+        # Combined confidence
+        confidence = 0.6 * obj_confidence + 0.4 * action_confidence
+        return min(1.0, confidence)
+
+class SceneUnderstandingModule:
+    def __init__(self):
+        """
+        Module for understanding scenes and objects
+        """
+        self.vision_model = VisionLanguagePerception()
+
+    def detect_objects(self, image: np.ndarray) -> List[Dict]:
+        """
+        Detect and classify objects in the scene
+        """
+        # Common object categories for humanoid environments
+        object_categories = [
+            "person", "chair", "table", "cup", "bottle", "book",
+            "laptop", "phone", "door", "window", "cabinet", "sofa"
+        ]
+
+        detected_objects = []
+        for category in object_categories:
+            similarity = self.vision_model.compute_similarity(image, f"a photo of {category}")
+            if similarity > 0.2:  # Threshold for detection
+                detected_objects.append({
+                    'category': category,
+                    'confidence': similarity,
+                    'attributes': self.analyze_attributes(image, category)
+                })
+
+        return detected_objects
+
+    def analyze_attributes(self, image: np.ndarray, category: str) -> Dict:
+        """
+        Analyze attributes of detected object
+        """
+        attributes = {}
+
+        # Color analysis
+        color_prompts = [f"a {color} {category}" for color in ["red", "blue", "green", "yellow", "black", "white"]]
+        color_similarities = []
+        for prompt in color_prompts:
+            sim = self.vision_model.compute_similarity(image, prompt)
+            color_similarities.append((prompt.split()[1], sim))
+
+        # Get most likely color
+        if color_similarities:
+            most_likely_color = max(color_similarities, key=lambda x: x[1])
+            attributes['color'] = most_likely_color[0]
+
+        # Size analysis
+        size_prompts = [f"a large {category}", f"a small {category}", f"a medium {category}"]
+        size_similarities = [self.vision_model.compute_similarity(image, prompt) for prompt in size_prompts]
+        size_labels = ['large', 'small', 'medium']
+        most_likely_size = size_labels[np.argmax(size_similarities)]
+        attributes['size'] = most_likely_size
+
+        return attributes
+
+    def describe_scene(self, image: np.ndarray, context: str = "") -> str:
+        """
+        Generate natural language description of the scene
+        """
+        objects = self.detect_objects(image)
+
+        if not objects:
+            return "The scene appears to be empty or no recognizable objects are present."
+
+        # Create scene description
+        object_names = [obj['category'] for obj in objects]
+        unique_objects = list(set(object_names))  # Remove duplicates
+
+        if len(unique_objects) == 1:
+            description = f"The scene contains a {unique_objects[0]}."
+        else:
+            description = f"The scene contains: {', '.join(unique_objects[:-1])}, and a {unique_objects[-1]}."
+
+        return description
+
+    def analyze_relationships(self, objects: List[Dict]) -> List[Dict]:
+        """
+        Analyze spatial relationships between objects
+        """
+        relationships = []
+
+        # This would involve more complex spatial reasoning in a real implementation
+        # For now, we'll create placeholder relationships
+        for i, obj1 in enumerate(objects):
+            for j, obj2 in enumerate(objects):
+                if i != j:
+                    # In a real implementation, this would use spatial coordinates
+                    # For now, we'll assume some common relationships
+                    if obj1['category'] in ['person'] and obj2['category'] in ['chair', 'table']:
+                        relationships.append({
+                            'subject': obj1['category'],
+                            'relation': 'near',
+                            'object': obj2['category'],
+                            'confidence': 0.8
+                        })
+
+        return relationships
+
+class ActionPlanningModule:
+    def __init__(self):
+        """
+        Module for planning actions based on perception
+        """
+        pass
+
+    def get_possible_actions(self, image: np.ndarray, objects: List[Dict]) -> List[Dict]:
+        """
+        Get possible actions based on current scene
+        """
+        possible_actions = []
+
+        for obj in objects:
+            category = obj['category']
+
+            # Define possible actions for each object type
+            if category in ['cup', 'bottle']:
+                possible_actions.append({
+                    'action': 'grasp',
+                    'target': category,
+                    'description': f'Grasp the {category}',
+                    'feasibility': 0.9
+                })
+                possible_actions.append({
+                    'action': 'move',
+                    'target': category,
+                    'description': f'Move the {category}',
+                    'feasibility': 0.8
+                })
+            elif category in ['person']:
+                possible_actions.append({
+                    'action': 'greet',
+                    'target': category,
+                    'description': f'Greet the {category}',
+                    'feasibility': 0.95
+                })
+                possible_actions.append({
+                    'action': 'follow',
+                    'target': category,
+                    'description': f'Follow the {category}',
+                    'feasibility': 0.7
+                })
+            elif category in ['chair', 'sofa']:
+                possible_actions.append({
+                    'action': 'approach',
+                    'target': category,
+                    'description': f'Approach the {category}',
+                    'feasibility': 0.9
+                })
+
+        return possible_actions
+
+    def plan_action(self, command: Dict, scene_analysis: Dict) -> Dict:
+        """
+        Plan specific action based on command and scene
+        """
+        # This would involve more sophisticated planning in a real implementation
+        # For now, we'll return a simple action plan
+
+        action_plan = {
+            'command': command,
+            'target_objects': scene_analysis.get('objects', []),
+            'sequence': [],
+            'feasible': True,
+            'estimated_time': 10.0  # seconds
+        }
+
+        # Add action steps based on command type
+        if command.get('action') == 'find':
+            action_plan['sequence'] = [
+                {'step': 'scan_environment', 'description': 'Scan environment for target object'},
+                {'step': 'identify_target', 'description': 'Identify the target object'},
+                {'step': 'navigate_to_object', 'description': 'Navigate to the object'},
+                {'step': 'confirm_object', 'description': 'Confirm object identification'}
+            ]
+        elif command.get('action') == 'grasp':
+            action_plan['sequence'] = [
+                {'step': 'approach_object', 'description': 'Approach the target object'},
+                {'step': 'position_hand', 'description': 'Position hand for grasping'},
+                {'step': 'execute_grasp', 'description': 'Execute grasping motion'},
+                {'step': 'verify_grasp', 'description': 'Verify successful grasp'}
+            ]
+
+        return action_plan
+
+class DialogueManager:
+    def __init__(self):
+        """
+        Manage natural language interaction
+        """
+        pass
+
+    def parse_command(self, command: str) -> Dict:
+        """
+        Parse natural language command
+        """
+        # Simple command parsing (in reality, this would use NLP models)
+        command_lower = command.lower()
+
+        parsed = {
+            'original': command,
+            'action': None,
+            'target': None,
+            'location': None,
+            'attributes': []
+        }
+
+        # Extract action
+        if any(word in command_lower for word in ['find', 'locate', 'look for']):
+            parsed['action'] = 'find'
+        elif any(word in command_lower for word in ['grasp', 'pick up', 'take', 'grab']):
+            parsed['action'] = 'grasp'
+        elif any(word in command_lower for word in ['move', 'bring', 'carry']):
+            parsed['action'] = 'move'
+        elif any(word in command_lower for word in ['go to', 'navigate to', 'walk to']):
+            parsed['action'] = 'navigate'
+        elif any(word in command_lower for word in ['greet', 'say hello', 'hello']):
+            parsed['action'] = 'greet'
+
+        # Extract target object
+        common_objects = ['apple', 'cup', 'bottle', 'book', 'phone', 'person', 'chair', 'table']
+        for obj in common_objects:
+            if obj in command_lower:
+                parsed['target'] = obj
+                break
+
+        # Extract location
+        common_locations = ['kitchen', 'living room', 'bedroom', 'office', 'dining room']
+        for loc in common_locations:
+            if loc in command_lower:
+                parsed['location'] = loc
+                break
+
+        return parsed
+
+    def generate_response(self, parsed_command: Dict, scene_analysis: Dict) -> str:
+        """
+        Generate natural language response
+        """
+        action = parsed_command.get('action', 'unknown')
+        target = parsed_command.get('target', 'object')
+
+        if action == 'find':
+            if target in [obj['category'] for obj in scene_analysis.get('objects', [])]:
+                return f"I can see the {target} in the current scene."
+            else:
+                return f"I don't see a {target} in the current scene. Would you like me to search for it?"
+        elif action == 'grasp':
+            if target in [obj['category'] for obj in scene_analysis.get('objects', [])]:
+                return f"I will attempt to grasp the {target}."
+            else:
+                return f"I don't see a {target} to grasp."
+        elif action == 'greet':
+            if 'person' in [obj['category'] for obj in scene_analysis.get('objects', [])]:
+                return "Hello! Nice to meet you."
+            else:
+                return "I don't see anyone to greet."
+        else:
+            return "I understand your request and will attempt to carry it out."
+
+# Example usage
+advanced_system = AdvancedVisionLanguageSystem()
+
+# Example command and image
+command = "Find the red cup and grasp it"
+sample_image = np.random.randint(0, 255, (480, 640, 3), dtype=np.uint8)  # Placeholder
+
+# Process command
+response = advanced_system.respond_to_command(command, sample_image)
+print(f"Response: {response['response']}")
+print(f"Action plan: {response['action_plan']}")
+print(f"Confidence: {response['confidence']:.3f}")
+```
+
+## Cognitive Planning Systems
+
+### Hierarchical Task Planning
+
+Cognitive planning for humanoid robots involves creating hierarchical task structures that break down complex goals into manageable subtasks, considering both high-level objectives and low-level motor actions.
+
+```python
+from enum import Enum
+from dataclasses import dataclass
+from typing import Optional, List
+import networkx as nx
+
+class TaskStatus(Enum):
+    PENDING = "pending"
+    IN_PROGRESS = "in_progress"
+    COMPLETED = "completed"
+    FAILED = "failed"
+    CANCELLED = "cancelled"
+
+@dataclass
+class Task:
+    """
+    Represents a single task in the hierarchy
+    """
+    id: str
+    name: str
+    description: str
+    dependencies: List[str]  # IDs of tasks that must be completed first
+    status: TaskStatus = TaskStatus.PENDING
+    priority: int = 1  # Higher number = higher priority
+    estimated_duration: float = 1.0  # in seconds
+    required_resources: List[str] = None  # e.g., ["arm", "camera", "navigation"]
+    success_conditions: List[str] = None  # Conditions that must be met for success
+
+    def __post_init__(self):
+        if self.required_resources is None:
+            self.required_resources = []
+        if self.success_conditions is None:
+            self.success_conditions = []
+
+class CognitivePlanner:
+    def __init__(self):
+        """
+        Hierarchical cognitive planner for humanoid robots
+        """
+        self.task_graph = nx.DiGraph()
+        self.active_tasks = []
+        self.completed_tasks = []
+        self.failed_tasks = []
+
+    def add_task(self, task: Task):
+        """
+        Add a task to the planning graph
+        """
+        self.task_graph.add_node(task.id, task=task)
+
+        # Add dependency edges
+        for dep_id in task.dependencies:
+            self.task_graph.add_edge(dep_id, task.id)
+
+    def create_delivery_task(self, target_location: str, item: str) -> List[Task]:
+        """
+        Create a complex delivery task with subtasks
+
+        Args:
+            target_location: Where to deliver the item
+            item: What item to deliver
+
+        Returns:
+            List of tasks that make up the delivery task
+        """
+        tasks = []
+
+        # 1. Find the item
+        find_task = Task(
+            id=f"find_{item}",
+            name=f"Find {item}",
+            description=f"Locate the {item} in the environment",
+            dependencies=[],
+            priority=2,
+            required_resources=["camera", "navigation"],
+            success_conditions=[f"detected_{item}"]
+        )
+        tasks.append(find_task)
+
+        # 2. Navigate to item
+        navigate_to_item_task = Task(
+            id=f"navigate_to_{item}",
+            name=f"Navigate to {item}",
+            description=f"Move to the location of the {item}",
+            dependencies=[find_task.id],
+            priority=2,
+            required_resources=["navigation"],
+            success_conditions=[f"at_{item}_location"]
+        )
+        tasks.append(navigate_to_item_task)
+
+        # 3. Grasp the item
+        grasp_task = Task(
+            id=f"grasp_{item}",
+            name=f"Grasp {item}",
+            description=f"Pick up the {item}",
+            dependencies=[navigate_to_item_task.id],
+            priority=3,
+            required_resources=["arm"],
+            success_conditions=[f"holding_{item}"]
+        )
+        tasks.append(grasp_task)
+
+        # 4. Navigate to target location
+        navigate_to_target_task = Task(
+            id=f"navigate_to_{target_location}",
+            name=f"Navigate to {target_location}",
+            description=f"Move to {target_location}",
+            dependencies=[grasp_task.id],
+            priority=2,
+            required_resources=["navigation"],
+            success_conditions=[f"at_{target_location}"]
+        )
+        tasks.append(navigate_to_target_task)
+
+        # 5. Deliver the item
+        deliver_task = Task(
+            id=f"deliver_{item}_to_{target_location}",
+            name=f"Deliver {item} to {target_location}",
+            description=f"Place the {item} at {target_location}",
+            dependencies=[navigate_to_target_task.id],
+            priority=3,
+            required_resources=["arm"],
+            success_conditions=[f"delivered_{item}_to_{target_location}"]
+        )
+        tasks.append(deliver_task)
+
+        return tasks
+
+    def get_ready_tasks(self) -> List[Task]:
+        """
+        Get tasks that are ready to be executed (dependencies satisfied)
+        """
+        ready_tasks = []
+        for node_id in self.task_graph.nodes():
+            task = self.task_graph.nodes[node_id]['task']
+
+            # Check if task is already started or completed
+            if task.status != TaskStatus.PENDING:
+                continue
+
+            # Check if all dependencies are completed
+            all_deps_met = True
+            for dep_id in task.dependencies:
+                dep_task = self.task_graph.nodes[dep_id]['task']
+                if dep_task.status != TaskStatus.COMPLETED:
+                    all_deps_met = False
+                    break
+
+            if all_deps_met:
+                ready_tasks.append(task)
+
+        # Sort by priority
+        ready_tasks.sort(key=lambda t: t.priority, reverse=True)
+        return ready_tasks
+
+    def execute_task(self, task: Task) -> bool:
+        """
+        Execute a single task (simulation)
+        """
+        print(f"Executing task: {task.name}")
+
+        # Simulate task execution
+        import time
+        time.sleep(task.estimated_duration * 0.1)  # Simulate execution time
+
+        # Simulate success/failure based on complexity
+        import random
+        success_probability = 0.9  # 90% success rate for demonstration
+
+        if random.random() < success_probability:
+            task.status = TaskStatus.COMPLETED
+            self.completed_tasks.append(task)
+            print(f"Task completed: {task.name}")
+            return True
+        else:
+            task.status = TaskStatus.FAILED
+            self.failed_tasks.append(task)
+            print(f"Task failed: {task.name}")
+            return False
+
+    def plan_and_execute(self, tasks: List[Task]) -> Dict:
+        """
+        Plan and execute a list of tasks
+
+        Args:
+            tasks: List of tasks to execute
+
+        Returns:
+            Dictionary with execution results
+        """
+        # Add all tasks to the graph
+        for task in tasks:
+            self.add_task(task)
+
+        execution_log = []
+        execution_start_time = time.time()
+
+        # Execute tasks until all are completed or failed
+        while True:
+            ready_tasks = self.get_ready_tasks()
+
+            if not ready_tasks:
+                # Check if there are still pending tasks (circular dependencies)
+                pending_tasks = [n['task'] for n in self.task_graph.nodes.values()
+                               if n['task'].status == TaskStatus.PENDING]
+                if not pending_tasks:
+                    break  # All tasks are either completed or failed
+                else:
+                    print("Circular dependency detected or unsatisfiable tasks")
+                    break
+
+            # Execute the highest priority ready task
+            task_to_execute = ready_tasks[0]
+            success = self.execute_task(task_to_execute)
+
+            execution_log.append({
+                'task_id': task_to_execute.id,
+                'task_name': task_to_execute.name,
+                'success': success,
+                'time': time.time() - execution_start_time
+            })
+
+        # Return execution results
+        results = {
+            'completed_count': len(self.completed_tasks),
+            'failed_count': len(self.failed_tasks),
+            'total_tasks': len(tasks),
+            'success_rate': len(self.completed_tasks) / len(tasks) if tasks else 0,
+            'execution_log': execution_log,
+            'total_time': time.time() - execution_start_time
+        }
+
+        return results
+
+# Example usage of cognitive planner
+planner = CognitivePlanner()
+
+# Create a delivery task
+delivery_tasks = planner.create_delivery_task("kitchen_counter", "water_bottle")
+
+# Execute the plan
+results = planner.plan_and_execute(delivery_tasks)
+print(f"Plan execution results: {results}")
+```
+
+### Decision Making Under Uncertainty
+
+Humanoid robots must make decisions in uncertain and dynamic environments. This requires probabilistic reasoning and the ability to handle incomplete information.
+
+```python
+import numpy as np
+from scipy.stats import norm
+import random
+
+class UncertaintyHandler:
+    def __init__(self):
+        """
+        Handle uncertainty in perception and decision making
+        """
+        self.confidence_threshold = 0.7
+        self.uncertainty_models = {}
+
+    def update_belief(self, belief_state: Dict, observation: Dict,
+                     action_taken: str = None) -> Dict:
+        """
+        Update belief state based on new observation
+
+        Args:
+            belief_state: Current belief state
+            observation: New observation
+            action_taken: Action that was taken before observation
+
+        Returns:
+            Updated belief state
+        """
+        updated_belief = belief_state.copy()
+
+        # Update beliefs based on observation
+        for key, value in observation.items():
+            if key in updated_belief:
+                # Combine old belief with new observation
+                old_belief = updated_belief[key]
+                new_belief = self.combine_beliefs(old_belief, value, confidence=0.8)
+                updated_belief[key] = new_belief
+            else:
+                # New belief
+                updated_belief[key] = {
+                    'value': value,
+                    'confidence': 0.9,
+                    'timestamp': time.time()
+                }
+
+        return updated_belief
+
+    def combine_beliefs(self, old_belief: Dict, new_observation: Any,
+                       confidence: float = 0.8) -> Dict:
+        """
+        Combine old belief with new observation using weighted average
+        """
+        if 'value' not in old_belief:
+            return {
+                'value': new_observation,
+                'confidence': confidence,
+                'timestamp': time.time()
+            }
+
+        # Weighted combination based on confidence
+        old_weight = old_belief.get('confidence', 0.5)
+        new_weight = confidence
+
+        # For continuous values, use weighted average
+        if isinstance(old_belief['value'], (int, float)) and isinstance(new_observation, (int, float)):
+            combined_value = (old_belief['value'] * old_weight + new_observation * new_weight) / (old_weight + new_weight)
+        else:
+            # For categorical values, use the most confident
+            combined_value = new_observation if new_weight > old_weight else old_belief['value']
+
+        combined_confidence = max(old_weight, new_weight) * 0.9  # Slightly reduce confidence after combination
+
+        return {
+            'value': combined_value,
+            'confidence': combined_confidence,
+            'timestamp': time.time()
+        }
+
+    def make_decision_under_uncertainty(self, options: List[Dict],
+                                     belief_state: Dict) -> Dict:
+        """
+        Make decision considering uncertainty in beliefs
+
+        Args:
+            options: List of possible actions with their outcomes
+            belief_state: Current belief state
+
+        Returns:
+            Selected action with reasoning
+        """
+        # Calculate expected utility for each option considering uncertainty
+        option_utilities = []
+
+        for option in options:
+            utility = self.calculate_expected_utility(option, belief_state)
+            option_utilities.append((option, utility))
+
+        # Select option with highest expected utility
+        best_option, best_utility = max(option_utilities, key=lambda x: x[1])
+
+        return {
+            'action': best_option,
+            'expected_utility': best_utility,
+            'confidence': best_option.get('confidence', 0.8),
+            'reasoning': self.explain_decision(best_option, belief_state)
+        }
+
+    def calculate_expected_utility(self, option: Dict, belief_state: Dict) -> float:
+        """
+        Calculate expected utility of an option considering uncertainty
+        """
+        base_utility = option.get('base_utility', 0.0)
+        risk_factor = option.get('risk_factor', 0.1)  # How risk-averse we are
+        uncertainty_penalty = 0.0
+
+        # Apply penalties based on uncertainty of relevant beliefs
+        for belief_key in option.get('relevant_beliefs', []):
+            if belief_key in belief_state:
+                belief_confidence = belief_state[belief_key].get('confidence', 0.5)
+                uncertainty_penalty += (1.0 - belief_confidence) * 0.2
+
+        # Risk-adjusted utility
+        risk_adjusted_utility = base_utility * (1 - risk_factor) - uncertainty_penalty
+
+        return risk_adjusted_utility
+
+    def explain_decision(self, option: Dict, belief_state: Dict) -> str:
+        """
+        Generate explanation for the decision
+        """
+        explanation_parts = []
+
+        # Add utility calculation
+        base_utility = option.get('base_utility', 0.0)
+        explanation_parts.append(f"Base utility: {base_utility:.3f}")
+
+        # Add uncertainty considerations
+        for belief_key in option.get('relevant_beliefs', []):
+            if belief_key in belief_state:
+                confidence = belief_state[belief_key].get('confidence', 0.5)
+                explanation_parts.append(f"Belief '{belief_key}' confidence: {confidence:.3f}")
+
+        # Add risk consideration
+        risk_factor = option.get('risk_factor', 0.1)
+        explanation_parts.append(f"Risk factor: {risk_factor:.3f}")
+
+        return "; ".join(explanation_parts)
+
+class AdaptiveDecisionMaker:
+    def __init__(self):
+        """
+        Decision maker that adapts to changing conditions
+        """
+        self.uncertainty_handler = UncertaintyHandler()
+        self.belief_state = {}
+        self.learning_rate = 0.1
+        self.decision_history = []
+
+    def make_adaptive_decision(self, context: Dict, options: List[Dict]) -> Dict:
+        """
+        Make adaptive decision based on context and learned preferences
+
+        Args:
+            context: Current context information
+            options: Available options
+
+        Returns:
+            Decision result
+        """
+        # Update belief state with current context
+        self.belief_state = self.uncertainty_handler.update_belief(
+            self.belief_state, context
+        )
+
+        # Make decision under uncertainty
+        decision = self.uncertainty_handler.make_decision_under_uncertainty(
+            options, self.belief_state
+        )
+
+        # Learn from the decision (simplified learning)
+        self.learn_from_decision(decision, context)
+
+        # Record decision for future learning
+        self.decision_history.append({
+            'context': context,
+            'decision': decision,
+            'timestamp': time.time()
+        })
+
+        return decision
+
+    def learn_from_decision(self, decision: Dict, context: Dict):
+        """
+        Update decision-making strategy based on outcomes
+        """
+        # This would implement more sophisticated learning in a real system
+        # For now, we'll adjust the learning rate based on decision confidence
+        decision_confidence = decision.get('confidence', 0.5)
+
+        # Adjust learning rate based on confidence
+        self.learning_rate = max(0.05, min(0.5, decision_confidence * 0.3))
+
+    def get_decision_confidence(self, decision: Dict) -> float:
+        """
+        Get overall confidence in the decision
+        """
+        return decision.get('confidence', 0.5)
+
+# Example usage
+adaptive_decision_maker = AdaptiveDecisionMaker()
+
+# Example context and options
+context = {
+    'battery_level': {'value': 0.3, 'confidence': 0.9},
+    'person_nearby': {'value': True, 'confidence': 0.8},
+    'obstacle_ahead': {'value': True, 'confidence': 0.7}
+}
+
+options = [
+    {
+        'action': 'continue_forward',
+        'base_utility': 0.6,
+        'risk_factor': 0.3,
+        'relevant_beliefs': ['obstacle_ahead']
+    },
+    {
+        'action': 'charge_battery',
+        'base_utility': 0.8,
+        'risk_factor': 0.1,
+        'relevant_beliefs': ['battery_level']
+    },
+    {
+        'action': 'interact_with_person',
+        'base_utility': 0.7,
+        'risk_factor': 0.2,
+        'relevant_beliefs': ['person_nearby']
+    }
+]
+
+# Make adaptive decision
+decision = adaptive_decision_maker.make_adaptive_decision(context, options)
+print(f"Adaptive decision: {decision['action']}")
+print(f"Reasoning: {decision['reasoning']}")
+print(f"Confidence: {adaptive_decision_maker.get_decision_confidence(decision):.3f}")
+```
+
+## Reinforcement Learning for Adaptive Behavior
+
+### Deep Reinforcement Learning for Humanoid Control
+
+```python
+import torch
+import torch.nn as nn
+import torch.optim as optim
+import numpy as np
+import random
+from collections import deque
+import gym
+from gym import spaces
+
+class HumanoidPolicyNetwork(nn.Module):
+    def __init__(self, state_dim: int, action_dim: int, hidden_dim: int = 256):
+        """
+        Policy network for humanoid robot control
+        """
+        super(HumanoidPolicyNetwork, self).__init__()
+
+        self.network = nn.Sequential(
+            nn.Linear(state_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, hidden_dim),
+            nn.ReLU(),
+            nn.Linear(hidden_dim, action_dim)
+        )
+
+        # For stochastic policies, we might also want to output action probabilities
+        self.action_layer = nn.Linear(hidden_dim, action_dim)
+        self.value_layer = nn.Linear(hidden_dim, 1)
+
+    def forward(self, state):
+        features = torch.relu(self.network[:-1](state))
+        action_logits = self.action_layer(features)
+        state_value = self.value_layer(features)
+
+        return action_logits, state_value
+
+class HumanoidReinforcementLearner:
+    def __init__(self, state_dim: int, action_dim: int, learning_rate: float = 3e-4):
+        """
+        Reinforcement learning system for humanoid robot behavior
+        """
+        self.state_dim = state_dim
+        self.action_dim = action_dim
+        self.learning_rate = learning_rate
+
+        # Neural networks
+        self.policy_network = HumanoidPolicyNetwork(state_dim, action_dim)
+        self.target_network = HumanoidPolicyNetwork(state_dim, action_dim)
+        self.optimizer = optim.Adam(self.policy_network.parameters(), lr=learning_rate)
+
+        # Experience replay
+        self.memory = deque(maxlen=10000)
+        self.batch_size = 32
+
+        # Training parameters
+        self.gamma = 0.99  # Discount factor
+        self.epsilon = 1.0  # Exploration rate
+        self.epsilon_min = 0.01
+        self.epsilon_decay = 0.995
+        self.target_update_freq = 1000
+
+        # Update target network
+        self.update_target_network()
+
+    def select_action(self, state, training: bool = True):
+        """
+        Select action using the policy network
+        """
+        state_tensor = torch.FloatTensor(state).unsqueeze(0)
+
+        if training and random.random() < self.epsilon:
+            # Random action for exploration
+            return random.randrange(self.action_dim)
+
+        with torch.no_grad():
+            action_logits, _ = self.policy_network(state_tensor)
+            action_probs = torch.softmax(action_logits, dim=1)
+            action = torch.multinomial(action_probs, 1).item()
+
+        return action
+
+    def store_experience(self, state, action, reward, next_state, done):
+        """
+        Store experience in replay memory
+        """
+        self.memory.append((state, action, reward, next_state, done))
+
+    def update_target_network(self):
+        """
+        Update target network with current policy network weights
+        """
+        self.target_network.load_state_dict(self.policy_network.state_dict())
+
+    def train(self):
+        """
+        Train the policy network using experiences from memory
+        """
+        if len(self.memory) < self.batch_size:
+            return  # Not enough experiences to train
+
+        # Sample random batch from memory
+        batch = random.sample(self.memory, self.batch_size)
+        states, actions, rewards, next_states, dones = zip(*batch)
+
+        # Convert to tensors
+        states = torch.FloatTensor(states)
+        actions = torch.LongTensor(actions)
+        rewards = torch.FloatTensor(rewards)
+        next_states = torch.FloatTensor(next_states)
+        dones = torch.BoolTensor(dones)
+
+        # Compute current Q values
+        current_q_values, _ = self.policy_network(states)
+        current_q_values = current_q_values.gather(1, actions.unsqueeze(1))
+
+        # Compute next Q values using target network
+        next_q_values, _ = self.target_network(next_states)
+        next_q_values = next_q_values.max(1)[0].detach()
+        target_q_values = rewards + (self.gamma * next_q_values * ~dones)
+
+        # Compute loss
+        loss = nn.MSELoss()(current_q_values.squeeze(), target_q_values)
+
+        # Optimize
+        self.optimizer.zero_grad()
+        loss.backward()
+        self.optimizer.step()
+
+        # Decay exploration rate
+        if self.epsilon > self.epsilon_min:
+            self.epsilon *= self.epsilon_decay
+
+    def save_model(self, filepath: str):
+        """
+        Save the trained model
+        """
+        torch.save({
+            'policy_network_state_dict': self.policy_network.state_dict(),
+            'target_network_state_dict': self.target_network.state_dict(),
+            'optimizer_state_dict': self.optimizer.state_dict(),
+            'epsilon': self.epsilon
+        }, filepath)
+
+    def load_model(self, filepath: str):
+        """
+        Load a trained model
+        """
+        checkpoint = torch.load(filepath)
+        self.policy_network.load_state_dict(checkpoint['policy_network_state_dict'])
+        self.target_network.load_state_dict(checkpoint['target_network_state_dict'])
+        self.optimizer.load_state_dict(checkpoint['optimizer_state_dict'])
+        self.epsilon = checkpoint['epsilon']
+
+class HumanoidEnvironment:
+    def __init__(self):
+        """
+        Simplified environment for humanoid robot training
+        """
+        # Define state space (simplified for example)
+        # State includes: joint positions, joint velocities, IMU readings, goal direction
+        self.state_dim = 50  # Simplified state dimension
+        self.action_dim = 20  # Number of possible actions
+
+        # Define action and observation spaces
+        self.action_space = spaces.Discrete(self.action_dim)
+        self.observation_space = spaces.Box(
+            low=-np.inf, high=np.inf, shape=(self.state_dim,), dtype=np.float32
+        )
+
+        # Environment state
+        self.current_state = np.zeros(self.state_dim)
+        self.goal_position = np.array([5.0, 5.0])  # Goal coordinates
+        self.robot_position = np.array([0.0, 0.0])  # Current robot position
+        self.step_count = 0
+        self.max_steps = 1000
+
+    def reset(self):
+        """
+        Reset the environment to initial state
+        """
+        self.current_state = np.random.randn(self.state_dim) * 0.1
+        self.robot_position = np.array([0.0, 0.0])
+        self.step_count = 0
+
+        return self.current_state
+
+    def step(self, action):
+        """
+        Execute one step in the environment
+        """
+        # Simplified physics simulation
+        # In a real implementation, this would interface with physics simulation
+        self._apply_action(action)
+
+        # Update state
+        self._update_state()
+
+        # Calculate reward
+        reward = self._calculate_reward()
+
+        # Check if episode is done
+        done = self._is_done()
+
+        self.step_count += 1
+
+        return self.current_state, reward, done, {}
+
+    def _apply_action(self, action):
+        """
+        Apply the selected action to the environment
+        """
+        # Simplified action application
+        # In reality, this would update joint positions/velocities
+        action_effect = (action - self.action_dim // 2) * 0.1  # Center action around 0
+        self.robot_position[0] += action_effect * 0.1  # Move in x direction
+        self.robot_position[1] += action_effect * 0.05  # Move in y direction (less)
+
+    def _update_state(self):
+        """
+        Update the state vector based on environment changes
+        """
+        # Simplified state update
+        distance_to_goal = np.linalg.norm(self.robot_position - self.goal_position)
+
+        # Update state vector with relevant information
+        self.current_state[0] = self.robot_position[0]  # X position
+        self.current_state[1] = self.robot_position[1]  # Y position
+        self.current_state[2] = distance_to_goal  # Distance to goal
+        # Add more state information in a real implementation
+
+    def _calculate_reward(self):
+        """
+        Calculate reward based on current state
+        """
+        distance_to_goal = np.linalg.norm(self.robot_position - self.goal_position)
+
+        # Reward based on proximity to goal
+        reward = -distance_to_goal * 0.1  # Negative distance (closer is better)
+
+        # Bonus for reaching goal
+        if distance_to_goal < 0.5:
+            reward += 10.0
+
+        # Penalty for taking too long
+        if self.step_count > self.max_steps * 0.8:
+            reward -= 1.0
+
+        return reward
+
+    def _is_done(self):
+        """
+        Check if the episode is finished
+        """
+        distance_to_goal = np.linalg.norm(self.robot_position - self.goal_position)
+
+        # Done if reached goal or exceeded max steps
+        return (distance_to_goal < 0.5) or (self.step_count >= self.max_steps)
+
+# Example training loop (commented out to prevent long execution)
+"""
+def train_humanoid_rl():
+    env = HumanoidEnvironment()
+    agent = HumanoidReinforcementLearner(
+        state_dim=env.state_dim,
+        action_dim=env.action_dim
+    )
+
+    num_episodes = 1000
+
+    for episode in range(num_episodes):
+        state = env.reset()
+        total_reward = 0
+
+        while True:
+            action = agent.select_action(state, training=True)
+            next_state, reward, done, _ = env.step(action)
+
+            agent.store_experience(state, action, reward, next_state, done)
+            agent.train()
+
+            state = next_state
+            total_reward += reward
+
+            if done:
+                break
+
+        # Update target network periodically
+        if episode % agent.target_update_freq == 0:
+            agent.update_target_network()
+
+        print(f"Episode {episode}, Total Reward: {total_reward:.2f}, Epsilon: {agent.epsilon:.3f}")
+
+    # Save trained model
+    agent.save_model("humanoid_rl_model.pth")
+
+# Uncomment to run training
+# train_humanoid_rl()
+"""
+```
+
+## Large Language Models for Human-Robot Interaction
+
+### Natural Language Understanding and Generation
+
+```python
+import openai
+from transformers import pipeline, AutoTokenizer, AutoModelForCausalLM
+import re
+
+class HumanRobotInteractionSystem:
+    def __init__(self, use_local_model: bool = True):
+        """
+        System for natural human-robot interaction using language models
+
+        Args:
+            use_local_model: Whether to use a local model or API-based service
+        """
+        self.use_local_model = use_local_model
+
+        if use_local_model:
+            # Use a local model (e.g., DialoGPT or similar)
+            self.tokenizer = AutoTokenizer.from_pretrained("microsoft/DialoGPT-medium")
+            self.model = AutoModelForCausalLM.from_pretrained("microsoft/DialoGPT-medium")
+            self.conversation_history = self.tokenizer.encode("Human: ", return_tensors="pt")
+        else:
+            # Use OpenAI API (requires API key)
+            # openai.api_key = "your-api-key-here"
+            pass
+
+        # Task parsing components
+        self.task_parser = TaskCommandParser()
+        self.response_generator = ResponseGenerator()
+
+    def process_human_input(self, user_input: str, robot_context: Dict = None) -> Dict:
+        """
+        Process human input and generate appropriate response
+
+        Args:
+            user_input: Natural language input from human
+            robot_context: Current context of the robot
+
+        Returns:
+            Dictionary containing response and action plan
+        """
+        if robot_context is None:
+            robot_context = {}
+
+        # Parse the command
+        parsed_command = self.task_parser.parse_command(user_input)
+
+        # Generate response
+        response = self.response_generator.generate_response(
+            user_input, parsed_command, robot_context
+        )
+
+        # Generate action plan if needed
+        action_plan = None
+        if parsed_command.get('action_required'):
+            action_plan = self.task_parser.generate_action_plan(parsed_command)
+
+        return {
+            'response': response,
+            'parsed_command': parsed_command,
+            'action_plan': action_plan,
+            'confidence': self.estimate_understanding_confidence(user_input, parsed_command)
+        }
+
+    def generate_robot_response(self, user_input: str, robot_state: Dict) -> str:
+        """
+        Generate natural language response from the robot
+        """
+        if self.use_local_model:
+            # Encode the new user input
+            new_input = self.tokenizer.encode(user_input + self.tokenizer.eos_token, return_tensors="pt")
+
+            # Append to conversation history
+            self.conversation_history = torch.cat([self.conversation_history, new_input], dim=-1)
+
+            # Generate response
+            with torch.no_grad():
+                output = self.model.generate(
+                    self.conversation_history,
+                    max_length=1000,
+                    num_beams=5,
+                    no_repeat_ngram_size=3,
+                    do_sample=True,
+                    top_k=50,
+                    top_p=0.95,
+                    temperature=0.8
+                )
+
+            # Decode response
+            response_text = self.tokenizer.decode(output[:, self.conversation_history.shape[-1]:][0], skip_special_tokens=True)
+
+            # Update conversation history with robot's response
+            robot_response = self.tokenizer.encode(response_text + self.tokenizer.eos_token, return_tensors="pt")
+            self.conversation_history = torch.cat([self.conversation_history, robot_response], dim=-1)
+
+            return response_text
+        else:
+            # Use OpenAI API
+            try:
+                response = openai.Completion.create(
+                    engine="text-davinci-003",
+                    prompt=user_input,
+                    max_tokens=150,
+                    temperature=0.7,
+                    stop=["Human:", "Robot:"]
+                )
+                return response.choices[0].text.strip()
+            except Exception as e:
+                return f"Sorry, I encountered an error: {str(e)}"
+
+    def estimate_understanding_confidence(self, user_input: str, parsed_command: Dict) -> float:
+        """
+        Estimate confidence in understanding the user command
+        """
+        confidence = 0.5  # Base confidence
+
+        # Increase confidence if we identified specific actions
+        if parsed_command.get('action'):
+            confidence += 0.2
+
+        # Increase confidence if we identified specific objects
+        if parsed_command.get('target_object'):
+            confidence += 0.15
+
+        # Increase confidence if we identified specific locations
+        if parsed_command.get('target_location'):
+            confidence += 0.15
+
+        # Decrease confidence if the input was very ambiguous
+        if len(user_input.split()) < 3:
+            confidence -= 0.2
+
+        # Ensure confidence is between 0 and 1
+        return max(0.0, min(1.0, confidence))
+
+class TaskCommandParser:
+    def __init__(self):
+        """
+        Parse natural language commands into structured tasks
+        """
+        self.action_keywords = {
+            'find': ['find', 'locate', 'look for', 'search for'],
+            'grasp': ['grasp', 'pick up', 'take', 'grab', 'get'],
+            'move': ['move', 'bring', 'carry', 'transport'],
+            'navigate': ['go to', 'navigate to', 'walk to', 'move to', 'go'],
+            'greet': ['greet', 'hello', 'hi', 'say hello', 'wave to'],
+            'follow': ['follow', 'accompany', 'go with'],
+            'wait': ['wait', 'stay', 'stop', 'pause'],
+            'help': ['help', 'assist', 'aid', 'support']
+        }
+
+        self.location_keywords = [
+            'kitchen', 'living room', 'bedroom', 'office', 'dining room',
+            'bathroom', 'hallway', 'garage', 'garden', 'outside'
+        ]
+
+        self.object_keywords = [
+            'cup', 'bottle', 'book', 'phone', 'laptop', 'chair', 'table',
+            'person', 'human', 'door', 'window', 'apple', 'water'
+        ]
+
+    def parse_command(self, command: str) -> Dict:
+        """
+        Parse natural language command into structured format
+        """
+        command_lower = command.lower().strip()
+        result = {
+            'original_command': command,
+            'action': None,
+            'target_object': None,
+            'target_location': None,
+            'action_required': False,
+            'parsed_entities': []
+        }
+
+        # Identify action
+        for action, keywords in self.action_keywords.items():
+            for keyword in keywords:
+                if keyword in command_lower:
+                    result['action'] = action
+                    result['action_required'] = True
+                    break
+            if result['action']:
+                break
+
+        # Identify target object
+        for obj in self.object_keywords:
+            if obj in command_lower:
+                result['target_object'] = obj
+                result['parsed_entities'].append(('object', obj))
+                break
+
+        # Identify target location
+        for loc in self.location_keywords:
+            if loc in command_lower:
+                result['target_location'] = loc
+                result['parsed_entities'].append(('location', loc))
+                break
+
+        # Extract additional information using regex
+        # Look for numeric values (quantities, distances, etc.)
+        numbers = re.findall(r'\d+\.?\d*', command_lower)
+        if numbers:
+            result['numbers'] = [float(n) for n in numbers]
+            result['parsed_entities'].extend([('number', float(n)) for n in numbers])
+
+        # Look for color descriptors
+        colors = ['red', 'blue', 'green', 'yellow', 'black', 'white', 'brown', 'orange', 'purple', 'pink']
+        found_colors = [color for color in colors if color in command_lower]
+        if found_colors:
+            result['colors'] = found_colors
+            result['parsed_entities'].extend([('color', color) for color in found_colors])
+
+        return result
+
+    def generate_action_plan(self, parsed_command: Dict) -> List[Dict]:
+        """
+        Generate an action plan based on parsed command
+        """
+        action_plan = []
+
+        action = parsed_command.get('action')
+        target_object = parsed_command.get('target_object')
+        target_location = parsed_command.get('target_location')
+
+        if action == 'find' and target_object:
+            action_plan = [
+                {'step': 'scan_environment', 'description': f'Scan environment for {target_object}'},
+                {'step': 'identify_object', 'description': f'Identify the {target_object}'},
+                {'step': 'approach_object', 'description': f'Approach the {target_object}'},
+                {'step': 'confirm_detection', 'description': f'Confirm detection of {target_object}'}
+            ]
+        elif action == 'grasp' and target_object:
+            action_plan = [
+                {'step': 'position_for_grasp', 'description': f'Position for grasping {target_object}'},
+                {'step': 'execute_grasp', 'description': f'Execute grasp motion for {target_object}'},
+                {'step': 'verify_grasp', 'description': f'Verify successful grasp of {target_object}'}
+            ]
+        elif action == 'navigate' and target_location:
+            action_plan = [
+                {'step': 'plan_path', 'description': f'Plan path to {target_location}'},
+                {'step': 'execute_navigation', 'description': f'Navigate to {target_location}'},
+                {'step': 'confirm_arrival', 'description': f'Confirm arrival at {target_location}'}
+            ]
+        elif action == 'greet':
+            action_plan = [
+                {'step': 'locate_person', 'description': 'Locate the person to greet'},
+                {'step': 'approach_person', 'description': 'Approach the person'},
+                {'step': 'greet_person', 'description': 'Greet the person appropriately'},
+                {'step': 'wait_for_response', 'description': 'Wait for response from person'}
+            ]
+
+        return action_plan
+
+class ResponseGenerator:
+    def __init__(self):
+        """
+        Generate natural language responses
+        """
+        self.response_templates = {
+            'acknowledgment': [
+                "I understand you want me to {action}.",
+                "Okay, I will {action}.",
+                "Got it, I'll {action}."
+            ],
+            'confirmation': [
+                "I have {action_result}.",
+                "I successfully {action_result}.",
+                "Task completed: {action_result}."
+            ],
+            'request_clarification': [
+                "Could you clarify what you mean by {unclear_part}?",
+                "I'm not sure I understand. Do you want me to {possible_interpretation}?",
+                "Could you repeat that more specifically?"
+            ]
+        }
+
+    def generate_response(self, user_input: str, parsed_command: Dict,
+                         robot_context: Dict) -> str:
+        """
+        Generate appropriate response based on command and context
+        """
+        action = parsed_command.get('action')
+        target_object = parsed_command.get('target_object')
+        target_location = parsed_command.get('target_location')
+
+        if not action:
+            # Unclear command, ask for clarification
+            return self._generate_clarification_response(user_input, parsed_command)
+
+        # Generate response based on action type
+        if action == 'find':
+            if target_object:
+                return f"I will search for the {target_object}. Where should I look?"
+            else:
+                return "I will search for the object. Can you describe it more specifically?"
+        elif action == 'grasp':
+            if target_object:
+                return f"I will attempt to grasp the {target_object}."
+            else:
+                return "I need to know what object to grasp."
+        elif action == 'navigate':
+            if target_location:
+                return f"I will navigate to the {target_location}."
+            else:
+                return "I need to know where you want me to go."
+        elif action == 'greet':
+            return "Hello! It's nice to meet you. How can I assist you today?"
+        elif action == 'help':
+            return "I'm here to help. You can ask me to find objects, navigate to locations, or perform tasks."
+        else:
+            return f"I understand you want me to {action}. How can I best assist you?"
+
+    def _generate_clarification_response(self, user_input: str, parsed_command: Dict) -> str:
+        """
+        Generate response asking for clarification
+        """
+        # Identify what's unclear
+        if len(user_input.split()) < 3:
+            return "Could you please provide more details about what you'd like me to do?"
+        else:
+            return f"I'm not sure I understood your request: '{user_input}'. Could you clarify what you'd like me to do?"
+
+# Example usage
+interaction_system = HumanRobotInteractionSystem(use_local_model=False)  # Using API mode for example
+
+# Example interactions
+user_inputs = [
+    "Please find the red cup in the kitchen",
+    "Can you go to the living room?",
+    "Grasp the water bottle",
+    "Hello robot, how are you?"
+]
+
+for user_input in user_inputs:
+    response = interaction_system.process_human_input(user_input)
+    print(f"User: {user_input}")
+    print(f"Robot: {response['response']}")
+    print(f"Action Plan: {response['action_plan']}")
+    print(f"Confidence: {response['confidence']:.3f}")
+    print("-" * 50)
+```
+
+## Performance Optimization and Validation
+
+### System Performance Metrics
+
+```python
+import time
+import statistics
+from dataclasses import dataclass
+from typing import Dict, List, Callable
+import psutil
+import GPUtil
+
+@dataclass
+class PerformanceMetrics:
+    """
+    Data class to hold performance metrics
+    """
+    response_time: float = 0.0
+    processing_time: float = 0.0
+    memory_usage: float = 0.0
+    cpu_usage: float = 0.0
+    gpu_usage: float = 0.0
+    accuracy: float = 0.0
+    throughput: float = 0.0
+    timestamp: float = 0.0
+
+class PerformanceMonitor:
+    def __init__(self):
+        """
+        Monitor performance of AI perception and decision making system
+        """
+        self.metrics_history: List[PerformanceMetrics] = []
+        self.start_time = time.time()
+
+    def measure_response_time(self, func: Callable, *args, **kwargs) -> tuple:
+        """
+        Measure response time of a function
+        """
+        start_time = time.time()
+        result = func(*args, **kwargs)
+        end_time = time.time()
+
+        response_time = end_time - start_time
+
+        # Collect system metrics
+        memory_usage = psutil.virtual_memory().percent
+        cpu_usage = psutil.cpu_percent()
+
+        # GPU usage if available
+        gpu_percent = 0.0
+        gpus = GPUtil.getGPUs()
+        if gpus:
+            gpu_percent = gpus[0].memoryUtil * 100  # Use first GPU
+
+        metrics = PerformanceMetrics(
+            response_time=response_time,
+            memory_usage=memory_usage,
+            cpu_usage=cpu_usage,
+            gpu_usage=gpu_percent,
+            timestamp=time.time()
+        )
+
+        self.metrics_history.append(metrics)
+
+        return result, metrics
+
+    def calculate_throughput(self, time_window: float = 10.0) -> float:
+        """
+        Calculate system throughput (operations per second)
+        """
+        current_time = time.time()
+        recent_metrics = [
+            m for m in self.metrics_history
+            if current_time - m.timestamp <= time_window
+        ]
+
+        if not recent_metrics:
+            return 0.0
+
+        time_span = max(m.timestamp for m in recent_metrics) - min(m.timestamp for m in recent_metrics)
+        if time_span == 0:
+            return len(recent_metrics)
+
+        return len(recent_metrics) / time_span
+
+    def get_average_metrics(self) -> Dict[str, float]:
+        """
+        Calculate average performance metrics
+        """
+        if not self.metrics_history:
+            return {}
+
+        response_times = [m.response_time for m in self.metrics_history]
+        memory_usage = [m.memory_usage for m in self.metrics_history]
+        cpu_usage = [m.cpu_usage for m in self.metrics_history]
+        gpu_usage = [m.gpu_usage for m in self.metrics_history]
+
+        avg_metrics = {
+            'avg_response_time': statistics.mean(response_times),
+            'avg_memory_usage': statistics.mean(memory_usage),
+            'avg_cpu_usage': statistics.mean(cpu_usage),
+            'avg_gpu_usage': statistics.mean(gpu_usage),
+            'throughput': self.calculate_throughput(),
+            'total_operations': len(self.metrics_history),
+            'total_time': time.time() - self.start_time
+        }
+
+        return avg_metrics
+
+    def generate_performance_report(self) -> str:
+        """
+        Generate a comprehensive performance report
+        """
+        avg_metrics = self.get_average_metrics()
+
+        report = []
+        report.append("=== AI Perception and Decision Making Performance Report ===")
+        report.append(f"Total operations: {avg_metrics.get('total_operations', 0)}")
+        report.append(f"Total time: {avg_metrics.get('total_time', 0):.2f}s")
+        report.append(f"Average response time: {avg_metrics.get('avg_response_time', 0):.3f}s")
+        report.append(f"Throughput: {avg_metrics.get('throughput', 0):.2f} ops/sec")
+        report.append(f"Average memory usage: {avg_metrics.get('avg_memory_usage', 0):.1f}%")
+        report.append(f"Average CPU usage: {avg_metrics.get('avg_cpu_usage', 0):.1f}%")
+        report.append(f"Average GPU usage: {avg_metrics.get('avg_gpu_usage', 0):.1f}%")
+
+        return "\n".join(report)
+
+class SystemValidator:
+    def __init__(self):
+        """
+        Validate AI perception and decision making system
+        """
+        self.performance_monitor = PerformanceMonitor()
+        self.validation_results = []
+
+    def validate_perception_accuracy(self, perception_system, test_data: List[Dict]) -> Dict:
+        """
+        Validate perception system accuracy
+
+        Args:
+            perception_system: The perception system to validate
+            test_data: List of test cases with expected results
+
+        Returns:
+            Dictionary of validation results
+        """
+        correct_predictions = 0
+        total_predictions = 0
+        response_times = []
+
+        for test_case in test_data:
+            start_time = time.time()
+
+            # Run perception on test input
+            result = perception_system.process_input(test_case['input'])
+
+            response_time = time.time() - start_time
+            response_times.append(response_time)
+
+            # Compare with expected result
+            if self.compare_results(result, test_case['expected']):
+                correct_predictions += 1
+
+            total_predictions += 1
+
+        accuracy = correct_predictions / total_predictions if total_predictions > 0 else 0
+        avg_response_time = statistics.mean(response_times) if response_times else 0
+
+        validation_result = {
+            'accuracy': accuracy,
+            'total_tests': total_predictions,
+            'correct_predictions': correct_predictions,
+            'average_response_time': avg_response_time,
+            'response_time_std': statistics.stdev(response_times) if len(response_times) > 1 else 0
+        }
+
+        self.validation_results.append({
+            'type': 'perception_accuracy',
+            'result': validation_result,
+            'timestamp': time.time()
+        })
+
+        return validation_result
+
+    def validate_decision_quality(self, decision_system, test_scenarios: List[Dict]) -> Dict:
+        """
+        Validate quality of decisions made by the system
+
+        Args:
+            decision_system: The decision making system to validate
+            test_scenarios: List of test scenarios with expected optimal decisions
+
+        Returns:
+            Dictionary of validation results
+        """
+        high_quality_decisions = 0
+        total_decisions = 0
+        decision_confidences = []
+
+        for scenario in test_scenarios:
+            # Get decision from system
+            decision = decision_system.make_decision(
+                scenario['context'],
+                scenario['options']
+            )
+
+            decision_confidences.append(decision.get('confidence', 0.5))
+
+            # Evaluate decision quality (simplified evaluation)
+            quality_score = self.evaluate_decision_quality(
+                decision,
+                scenario.get('optimal_action')
+            )
+
+            if quality_score >= 0.7:  # Threshold for "high quality"
+                high_quality_decisions += 1
+
+            total_decisions += 1
+
+        quality_ratio = high_quality_decisions / total_decisions if total_decisions > 0 else 0
+        avg_confidence = statistics.mean(decision_confidences) if decision_confidences else 0
+
+        validation_result = {
+            'quality_ratio': quality_ratio,
+            'total_decisions': total_decisions,
+            'high_quality_decisions': high_quality_decisions,
+            'average_confidence': avg_confidence,
+            'confidence_std': statistics.stdev(decidence_confidences) if len(decision_confidences) > 1 else 0
+        }
+
+        self.validation_results.append({
+            'type': 'decision_quality',
+            'result': validation_result,
+            'timestamp': time.time()
+        })
+
+        return validation_result
+
+    def compare_results(self, result: Dict, expected: Dict) -> bool:
+        """
+        Compare perception result with expected result
+        """
+        # Simplified comparison - in practice, this would be more sophisticated
+        return result.get('classification') == expected.get('classification')
+
+    def evaluate_decision_quality(self, decision: Dict, optimal_action: str) -> float:
+        """
+        Evaluate the quality of a decision
+        """
+        # Simplified evaluation based on whether the action matches optimal
+        if decision.get('action') == optimal_action:
+            return 1.0
+        else:
+            # In a real system, this would consider partial correctness, safety, etc.
+            return 0.5  # Partial credit for reasonable but non-optimal action
+
+    def run_comprehensive_validation(self, system_components: Dict) -> Dict:
+        """
+        Run comprehensive validation of all system components
+
+        Args:
+            system_components: Dictionary of system components to validate
+
+        Returns:
+            Comprehensive validation results
+        """
+        results = {}
+
+        # Validate perception system
+        if 'perception' in system_components:
+            perception_tests = [
+                {'input': 'image_of_apple', 'expected': {'classification': 'apple'}},
+                {'input': 'image_of_bottle', 'expected': {'classification': 'bottle'}},
+                # Add more test cases
+            ]
+            results['perception'] = self.validate_perception_accuracy(
+                system_components['perception'],
+                perception_tests
+            )
+
+        # Validate decision making system
+        if 'decision_making' in system_components:
+            decision_scenarios = [
+                {
+                    'context': {'battery_level': 0.2, 'goal_distance': 10.0},
+                    'options': [{'action': 'find_charger', 'utility': 0.9}, {'action': 'continue_task', 'utility': 0.3}],
+                    'optimal_action': 'find_charger'
+                },
+                # Add more scenarios
+            ]
+            results['decision_making'] = self.validate_decision_quality(
+                system_components['decision_making'],
+                decision_scenarios
+            )
+
+        # Generate performance report
+        results['performance_report'] = self.performance_monitor.generate_performance_report()
+
+        return results
+
+# Example validation (using dummy components)
+class DummyPerceptionSystem:
+    def process_input(self, input_data):
+        # Simulate perception processing
+        return {'classification': 'unknown_object', 'confidence': 0.8}
+
+class DummyDecisionSystem:
+    def make_decision(self, context, options):
+        # Simulate decision making
+        return {
+            'action': 'navigate_to_charger',
+            'confidence': 0.85,
+            'reasoning': 'Battery level low, navigating to charger'
+        }
+
+validator = SystemValidator()
+
+# Dummy system components
+components = {
+    'perception': DummyPerceptionSystem(),
+    'decision_making': DummyDecisionSystem()
+}
+
+# Run validation
+validation_results = validator.run_comprehensive_validation(components)
+print("Validation Results:")
+for component, result in validation_results.items():
+    if component != 'performance_report':
+        print(f"{component}: {result}")
+```
+
+## Best Practices and Guidelines
+
+### AI Perception Best Practices
+
+1. **Multi-Modal Integration**: Combine multiple sensor modalities for robust perception
+2. **Uncertainty Quantification**: Always quantify and handle uncertainty in perception
+3. **Real-time Performance**: Optimize algorithms for real-time execution
+4. **Safety First**: Implement safety checks in all perception and decision-making systems
+5. **Continuous Learning**: Enable systems to adapt and improve over time
+
+### Troubleshooting Common Issues
+
+```python
+class AIPerceptionTroubleshooter:
+    def __init__(self):
+        self.common_issues = {
+            'perception_inaccuracy': self.troubleshoot_perception_inaccuracy,
+            'slow_response': self.troubleshoot_slow_response,
+            'language_understanding': self.troubleshoot_language_understanding,
+            'decision_inconsistency': self.troubleshoot_decision_inconsistency,
+            'resource_consumption': self.troubleshoot_resource_consumption
+        }
+
+    def troubleshoot_perception_inaccuracy(self):
+        """
+        Troubleshoot perception system inaccuracy
+        """
+        fixes = [
+            "Verify sensor calibration and alignment",
+            "Check lighting conditions and adjust exposure if needed",
+            "Validate training data quality and diversity",
+            "Assess model confidence scores and set appropriate thresholds",
+            "Implement sensor fusion to combine multiple modalities"
+        ]
+        return fixes
+
+    def troubleshoot_slow_response(self):
+        """
+        Troubleshoot slow system response
+        """
+        fixes = [
+            "Optimize neural network architecture for inference speed",
+            "Use model quantization or pruning techniques",
+            "Implement efficient data preprocessing pipelines",
+            "Consider using edge computing for faster processing",
+            "Optimize memory management and data transfer"
+        ]
+        return fixes
+
+    def troubleshoot_language_understanding(self):
+        """
+        Troubleshoot natural language understanding issues
+        """
+        fixes = [
+            "Expand training dataset with diverse language patterns",
+            "Implement better context tracking mechanisms",
+            "Use more sophisticated language models",
+            "Add domain-specific language models",
+            "Implement fallback strategies for misunderstood commands"
+        ]
+        return fixes
+
+    def troubleshoot_decision_inconsistency(self):
+        """
+        Troubleshoot inconsistent decision making
+        """
+        fixes = [
+            "Review decision-making algorithms for logical consistency",
+            "Implement proper state tracking and context awareness",
+            "Validate reward functions in reinforcement learning systems",
+            "Add decision validation and verification steps",
+            "Implement decision explanation capabilities"
+        ]
+        return fixes
+
+    def troubleshoot_resource_consumption(self):
+        """
+        Troubleshoot high resource consumption
+        """
+        fixes = [
+            "Profile system to identify resource bottlenecks",
+            "Optimize neural network models for efficiency",
+            "Implement dynamic resource allocation",
+            "Use model compression techniques",
+            "Consider hierarchical processing to reduce computational load"
+        ]
+        return fixes
+
+    def run_diagnostic(self, issue_type: str) -> List[str]:
+        """
+        Run diagnostic for specific issue type
+        """
+        if issue_type in self.common_issues:
+            return self.common_issues[issue_type]()
+        else:
+            return ["Issue type not recognized"]
+
+# Example usage
+troubleshooter = AIPerceptionTroubleshooter()
+perception_fixes = troubleshooter.run_diagnostic('perception_inaccuracy')
+print(f"Perception fixes: {perception_fixes}")
+```
+
+## Summary
+
+AI perception and decision making systems form the cognitive core of humanoid robots, enabling them to understand their environment, interact naturally with humans, and make intelligent decisions in complex scenarios. This chapter covered the integration of vision-language models for multimodal perception, cognitive planning systems for complex task execution, reinforcement learning for adaptive behavior, and natural language processing for human-robot interaction. The combination of these technologies enables humanoid robots to operate autonomously in dynamic environments while maintaining safe and effective interaction with humans. Proper validation and performance optimization ensure that these AI systems meet the real-time and safety requirements of humanoid robotics applications.
+
+## Exercises
+
+1. Implement a vision-language model for object recognition and manipulation in humanoid robots
+2. Design a cognitive planning system for complex multi-step tasks
+3. Create a reinforcement learning environment for humanoid locomotion control
+4. Develop a natural language interface for human-robot interaction
+5. Validate AI perception accuracy in diverse environmental conditions

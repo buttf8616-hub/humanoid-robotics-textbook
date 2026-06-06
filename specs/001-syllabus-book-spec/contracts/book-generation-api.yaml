@@ -1,0 +1,215 @@
+openapi: 3.0.0
+info:
+  title: Book Generation API
+  description: API for generating technical books from syllabus topics using AI assistance
+  version: 1.0.0
+servers:
+  - url: http://localhost:3000/api
+    description: Local development server
+
+paths:
+  /generate-book:
+    post:
+      summary: Generate a technical book from a syllabus
+      description: Creates a Docusaurus-based technical book from provided syllabus topics
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SyllabusInput'
+      responses:
+        '200':
+          description: Book generation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GenerationResponse'
+        '400':
+          description: Invalid syllabus input
+        '500':
+          description: Internal server error during generation
+      tags:
+        - Book Generation
+
+  /validate-content:
+    post:
+      summary: Validate book content compliance
+      description: Validates that generated content complies with syllabus requirements
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ContentValidationRequest'
+      responses:
+        '200':
+          description: Validation successful
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ValidationResponse'
+        '400':
+          description: Invalid content for validation
+        '500':
+          description: Internal server error during validation
+      tags:
+        - Content Validation
+
+components:
+  schemas:
+    SyllabusInput:
+      type: object
+      required:
+        - topics
+        - title
+        - description
+      properties:
+        title:
+          type: string
+          description: Title of the technical book
+          example: "Docusaurus Documentation Guide"
+        description:
+          type: string
+          description: Description of the technical book
+          example: "A comprehensive guide to Docusaurus documentation framework"
+        topics:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyllabusTopic'
+        author:
+          type: string
+          description: Author of the book
+          example: "Technical Writer"
+
+    SyllabusTopic:
+      type: object
+      required:
+        - id
+        - title
+        - description
+      properties:
+        id:
+          type: string
+          description: Unique identifier for the topic
+          example: "topic-1"
+        title:
+          type: string
+          description: Title of the syllabus topic
+          example: "Getting Started with Docusaurus"
+        description:
+          type: string
+          description: Brief description of the topic
+          example: "Introduction to Docusaurus framework and setup"
+        learningObjectives:
+          type: array
+          items:
+            type: string
+          description: List of learning objectives for this topic
+          example: ["Understand Docusaurus basics", "Install Docusaurus", "Create first page"]
+        prerequisites:
+          type: array
+          items:
+            type: string
+          description: List of prerequisite topics
+          example: []
+        category:
+          type: string
+          description: Category for grouping topics
+          example: "Fundamentals"
+
+    GenerationResponse:
+      type: object
+      required:
+        - status
+        - bookPath
+        - chapterCount
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+          description: Status of the generation process
+        bookPath:
+          type: string
+          description: Path to the generated book files
+          example: "docs/chapters/"
+        chapterCount:
+          type: integer
+          description: Number of chapters generated
+          example: 10
+        message:
+          type: string
+          description: Additional information about the generation
+        generatedFiles:
+          type: array
+          items:
+            type: string
+          description: List of generated file paths
+          example: ["docs/chapters/topic-1.md", "docs/chapters/topic-2.md"]
+
+    ContentValidationRequest:
+      type: object
+      required:
+        - content
+        - syllabusTopics
+      properties:
+        content:
+          type: string
+          description: Content to validate
+          example: "Markdown content to validate against syllabus"
+        syllabusTopics:
+          type: array
+          items:
+            $ref: '#/components/schemas/SyllabusTopic'
+        verificationSources:
+          type: array
+          items:
+            type: string
+          description: List of approved verification sources
+          example: ["official-docusaurus-docs", "verified-api-reference"]
+
+    ValidationResponse:
+      type: object
+      required:
+        - isValid
+        - complianceScore
+        - validationReport
+      properties:
+        isValid:
+          type: boolean
+          description: Whether the content passes validation
+        complianceScore:
+          type: number
+          minimum: 0
+          maximum: 100
+          description: Compliance score as percentage
+          example: 95.5
+        validationReport:
+          type: string
+          description: Detailed validation report
+        issues:
+          type: array
+          items:
+            $ref: '#/components/schemas/ValidationIssue'
+
+    ValidationIssue:
+      type: object
+      required:
+        - type
+        - severity
+        - description
+      properties:
+        type:
+          type: string
+          enum: [content-mismatch, source-verification, formatting, completeness]
+          description: Type of validation issue
+        severity:
+          type: string
+          enum: [critical, high, medium, low]
+          description: Severity of the issue
+        description:
+          type: string
+          description: Description of the issue
+        suggestedFix:
+          type: string
+          description: Suggested fix for the issue

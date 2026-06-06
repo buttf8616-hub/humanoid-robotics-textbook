@@ -1,0 +1,37 @@
+{
+  "id": "modules/module-1/chapter-2-embodied-intelligence-principles",
+  "title": "Chapter 2: Embodied Intelligence Principles",
+  "description": "Understanding the principles of embodied intelligence in humanoid robotics",
+  "source": "@site/docs/modules/module-1/chapter-2-embodied-intelligence-principles.mdx",
+  "sourceDirName": "modules/module-1",
+  "slug": "/modules/module-1/chapter-2-embodied-intelligence-principles",
+  "permalink": "/modules/module-1/chapter-2-embodied-intelligence-principles",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-1/chapter-2-embodied-intelligence-principles.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "title": "Chapter 2: Embodied Intelligence Principles",
+    "description": "Understanding the principles of embodied intelligence in humanoid robotics",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "Embodied Intelligence",
+      "Cognitive Science",
+      "Embodied Cognition",
+      "Humanoid Robotics",
+      "Sensorimotor Integration"
+    ],
+    "sidebar_position": 2
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 1: Introduction to Physical AI",
+    "permalink": "/modules/module-1/chapter-1-introduction-to-physical-ai"
+  },
+  "next": {
+    "title": "Chapter 3: Digital-Physical Bridge",
+    "permalink": "/modules/module-1/chapter-3-digital-physical-bridge"
+  }
+}

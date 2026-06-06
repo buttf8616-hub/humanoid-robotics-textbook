@@ -1,0 +1,66 @@
+/**
+ * ChatWidget Styles
+ *
+ * Styles for the main chat widget container and toggle button.
+ */
+
+.chatWidget {
+  position: fixed;
+  bottom: 20px;
+  right: 20px;
+  z-index: 1000;
+  font-family: var(--ifm-font-family-base);
+}
+
+/* Toggle Button */
+.toggleButton {
+  width: var(--chat-toggle-size);
+  height: var(--chat-toggle-size);
+  border-radius: 50%;
+  border: none;
+  background-color: var(--chat-toggle-bg);
+  color: var(--chat-toggle-text);
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: 0 4px 12px var(--chat-shadow);
+  transition: all 0.2s ease;
+}
+
+.toggleButton:hover {
+  background-color: var(--chat-toggle-hover);
+  transform: scale(1.05);
+}
+
+.toggleButton:focus {
+  outline: 2px solid var(--ifm-color-primary-light);
+  outline-offset: 2px;
+}
+
+.toggleButton:active {
+  transform: scale(0.95);
+}
+
+.toggleButton svg {
+  width: 24px;
+  height: 24px;
+}
+
+/* Mobile Styles */
+@media (max-width: 768px) {
+  .chatWidget {
+    bottom: 16px;
+    right: 16px;
+  }
+
+  .toggleButton {
+    width: 60px;
+    height: 60px;
+  }
+
+  .toggleButton svg {
+    width: 28px;
+    height: 28px;
+  }
+}

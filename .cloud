@@ -1,0 +1,17 @@
+# Cloud Configuration for Physical AI & Humanoid Robotics Textbook
+
+# Vercel deployment configuration
+PROVIDER=vercel
+PROJECT_NAME=physical-ai-robotics-book
+FRAMEWORK=docusaurus
+BUILD_COMMAND=npm run build
+OUTPUT_DIR=build
+ROOT_DIR=.
+
+# Environment variables for cloud deployment
+NODE_VERSION=20.x
+
+# Connection status tracking
+CLOUD_CONNECTED=true
+DEPLOYMENT_STATUS=ready
+BUILD_ENVIRONMENT=production

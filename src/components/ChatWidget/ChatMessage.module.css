@@ -1,0 +1,149 @@
+/**
+ * ChatMessage Styles
+ */
+
+.message {
+  display: flex;
+  flex-direction: column;
+  max-width: 85%;
+}
+
+.userMessage {
+  align-self: flex-end;
+}
+
+.assistantMessage {
+  align-self: flex-start;
+}
+
+/* Message Bubble */
+.bubble {
+  padding: 8px 14px;
+  border-radius: var(--chat-message-radius);
+  word-wrap: break-word;
+  overflow-wrap: break-word;
+}
+
+.userMessage .bubble {
+  background-color: var(--chat-user-msg-bg);
+  color: var(--chat-user-msg-text);
+  border-bottom-right-radius: 4px;
+}
+
+.assistantMessage .bubble {
+  background-color: var(--chat-assistant-msg-bg);
+  color: var(--chat-assistant-msg-text);
+  border-bottom-left-radius: 4px;
+}
+
+.userText {
+  margin: 0;
+  font-size: 14px;
+  line-height: 1.5;
+  white-space: pre-wrap;
+}
+
+/* Markdown Content */
+.markdownContent {
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+.markdownContent p {
+  margin: 0 0 8px;
+}
+
+.markdownContent p:last-child {
+  margin-bottom: 0;
+}
+
+.markdownContent code {
+  background-color: rgba(0, 0, 0, 0.06);
+  padding: 1px 4px;
+  border-radius: 3px;
+  font-size: 13px;
+}
+
+.markdownContent pre {
+  background-color: rgba(0, 0, 0, 0.06);
+  padding: 8px 12px;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.markdownContent pre code {
+  background: none;
+  padding: 0;
+}
+
+.markdownContent ul,
+.markdownContent ol {
+  margin: 4px 0;
+  padding-left: 20px;
+}
+
+.markdownContent li {
+  margin: 2px 0;
+}
+
+.markdownContent strong {
+  font-weight: 600;
+}
+
+.markdownContent a {
+  color: var(--ifm-color-primary);
+  text-decoration: underline;
+}
+
+/* Meta / Confidence */
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 2px 4px;
+  margin-top: 4px;
+}
+
+.confidence {
+  font-size: 11px;
+  padding: 1px 6px;
+  border-radius: 8px;
+  opacity: 0.8;
+}
+
+.high {
+  color: #2e7d32;
+  background-color: rgba(46, 125, 50, 0.1);
+}
+
+.medium {
+  color: #f57f17;
+  background-color: rgba(245, 127, 23, 0.1);
+}
+
+.low {
+  color: #c62828;
+  background-color: rgba(198, 40, 40, 0.1);
+}
+
+.refused {
+  color: #757575;
+  background-color: rgba(117, 117, 117, 0.1);
+}
+
+/* Sources */
+.sources {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  margin-top: 6px;
+  padding-left: 4px;
+}
+
+.sourcesLabel {
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--chat-assistant-msg-text);
+  opacity: 0.6;
+}

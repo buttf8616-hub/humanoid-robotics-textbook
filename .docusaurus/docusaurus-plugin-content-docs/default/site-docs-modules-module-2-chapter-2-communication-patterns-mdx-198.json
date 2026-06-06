@@ -1,0 +1,37 @@
+{
+  "id": "modules/module-2/chapter-2-communication-patterns",
+  "title": "Chapter 2: Nodes and Topics in ROS 2",
+  "description": "Deep dive into nodes and topics for humanoid robot communication",
+  "source": "@site/docs/modules/module-2/chapter-2-communication-patterns.mdx",
+  "sourceDirName": "modules/module-2",
+  "slug": "/modules/module-2/chapter-2-communication-patterns",
+  "permalink": "/modules/module-2/chapter-2-communication-patterns",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-2/chapter-2-communication-patterns.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 2,
+  "frontMatter": {
+    "title": "Chapter 2: Nodes and Topics in ROS 2",
+    "description": "Deep dive into nodes and topics for humanoid robot communication",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "ROS 2 Nodes",
+      "Topics",
+      "Communication",
+      "Publish-Subscribe",
+      "Message Passing"
+    ],
+    "sidebar_position": 2
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 1: ROS 2 Architecture and Fundamentals",
+    "permalink": "/modules/module-2/chapter-1-ros2-architecture-fundamentals"
+  },
+  "next": {
+    "title": "Chapter 3: Services and Actions in ROS 2",
+    "permalink": "/modules/module-2/chapter-3-robot-modeling-urdf"
+  }
+}

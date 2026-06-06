@@ -1,0 +1,48 @@
+/**
+ * SelectionTooltip Styles
+ *
+ * Floating tooltip that appears near text selection.
+ */
+
+.tooltip {
+  animation: fadeIn 0.15s ease;
+}
+
+@keyframes fadeIn {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.askButton {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 14px;
+  border: none;
+  border-radius: 8px;
+  background-color: var(--chat-tooltip-bg);
+  color: var(--chat-tooltip-text);
+  font-size: 13px;
+  font-weight: 500;
+  font-family: inherit;
+  cursor: pointer;
+  white-space: nowrap;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15);
+  transition: all 0.15s;
+}
+
+.askButton:hover {
+  opacity: 0.9;
+  transform: scale(1.02);
+}
+
+.askButton:focus {
+  outline: 2px solid var(--ifm-color-primary-light);
+  outline-offset: 2px;
+}

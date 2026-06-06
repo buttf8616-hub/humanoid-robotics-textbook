@@ -1,0 +1,243 @@
+openapi: 3.1.0
+info:
+  title: RAG Retrieval Pipeline API
+  description: Semantic search API for retrieving relevant book content from Qdrant
+  version: 1.0.0
+
+servers:
+  - url: /api/v1
+    description: API v1
+
+paths:
+  /search:
+    post:
+      summary: Search for relevant book content
+      description: |
+        Performs semantic search over stored book embeddings.
+        Converts query to embedding, searches Qdrant, and returns relevant chunks.
+      operationId: search
+      tags:
+        - Retrieval
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SearchRequest'
+            examples:
+              basic:
+                summary: Basic search
+                value:
+                  query: "What is embodied intelligence?"
+              with_top_k:
+                summary: Search with custom top_k
+                value:
+                  query: "ROS 2 architecture"
+                  top_k: 10
+              with_filters:
+                summary: Search with filters
+                value:
+                  query: "sensor fusion"
+                  top_k: 5
+                  url_filter: "https://example.com/chapter-3"
+                  section_filter: "Perception"
+      responses:
+        '200':
+          description: Successful search
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SearchResponse'
+              example:
+                results:
+                  - content: "Embodied intelligence refers to the idea that intelligence emerges from the interaction between an agent and its environment..."
+                    url: "https://buttf8616-hub.github.io/humanoid-robotics-textbook/docs/module-1/chapter-2"
+                    title: "Embodied Intelligence Principles"
+                    section: "Introduction"
+                    chunk_index: 0
+                    score: 0.89
+                  - content: "Physical AI systems demonstrate embodied intelligence through their ability to perceive and act..."
+                    url: "https://buttf8616-hub.github.io/humanoid-robotics-textbook/docs/module-1/chapter-1"
+                    title: "Introduction to Physical AI"
+                    section: "Core Concepts"
+                    chunk_index: 2
+                    score: 0.82
+                total_count: 2
+                latency_ms: 234.5
+                filters_applied: {}
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                empty_query:
+                  summary: Empty query
+                  value:
+                    error: "validation_error"
+                    message: "Query must not be empty"
+                    details:
+                      field: "query"
+                invalid_top_k:
+                  summary: Invalid top_k
+                  value:
+                    error: "validation_error"
+                    message: "top_k must be between 1 and 50"
+                    details:
+                      field: "top_k"
+                      min: 1
+                      max: 50
+        '503':
+          description: Service unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              examples:
+                embedding_error:
+                  summary: Embedding service error
+                  value:
+                    error: "service_unavailable"
+                    message: "Embedding service temporarily unavailable"
+                    details:
+                      service: "cohere"
+                      retry_after: 5
+                qdrant_error:
+                  summary: Qdrant error
+                  value:
+                    error: "service_unavailable"
+                    message: "Vector database temporarily unavailable"
+                    details:
+                      service: "qdrant"
+                      retry_after: 5
+
+components:
+  schemas:
+    SearchRequest:
+      type: object
+      required:
+        - query
+      properties:
+        query:
+          type: string
+          minLength: 1
+          maxLength: 1000
+          description: Natural language search query
+          example: "What is embodied intelligence?"
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 5
+          description: Number of results to return
+          example: 5
+        url_filter:
+          type: string
+          nullable: true
+          description: Filter by exact URL match
+          example: "https://buttf8616-hub.github.io/humanoid-robotics-textbook/docs/module-1/chapter-2"
+        section_filter:
+          type: string
+          nullable: true
+          maxLength: 200
+          description: Filter by section name (substring match)
+          example: "Introduction"
+
+    SearchResponse:
+      type: object
+      required:
+        - results
+        - total_count
+        - latency_ms
+        - filters_applied
+      properties:
+        results:
+          type: array
+          items:
+            $ref: '#/components/schemas/RetrievalResult'
+          description: List of matching chunks sorted by relevance
+        total_count:
+          type: integer
+          minimum: 0
+          description: Number of results returned
+          example: 5
+        latency_ms:
+          type: number
+          format: float
+          minimum: 0
+          description: Total processing time in milliseconds
+          example: 234.5
+        filters_applied:
+          type: object
+          additionalProperties: true
+          description: Filters that were applied to the search
+          example:
+            url_filter: null
+            section_filter: null
+
+    RetrievalResult:
+      type: object
+      required:
+        - content
+        - url
+        - title
+        - section
+        - chunk_index
+        - score
+      properties:
+        content:
+          type: string
+          description: Full chunk text content
+          example: "Embodied intelligence refers to the idea that intelligence emerges..."
+        url:
+          type: string
+          format: uri
+          description: Source page URL
+          example: "https://buttf8616-hub.github.io/humanoid-robotics-textbook/docs/module-1/chapter-2"
+        title:
+          type: string
+          description: Page title
+          example: "Embodied Intelligence Principles"
+        section:
+          type: string
+          description: Section header (may be empty string)
+          example: "Introduction"
+        chunk_index:
+          type: integer
+          minimum: 0
+          description: Position within source page
+          example: 0
+        score:
+          type: number
+          format: float
+          minimum: -1
+          maximum: 1
+          description: Relevance score (cosine similarity)
+          example: 0.89
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type identifier
+          example: "validation_error"
+        message:
+          type: string
+          description: Human-readable error message
+          example: "Query must not be empty"
+        details:
+          type: object
+          nullable: true
+          additionalProperties: true
+          description: Additional error details
+          example:
+            field: "query"
+
+tags:
+  - name: Retrieval
+    description: Semantic search operations

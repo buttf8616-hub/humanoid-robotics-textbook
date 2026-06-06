@@ -1,0 +1,65 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" fill="none" width="64" height="64">
+  <!-- Antenna -->
+  <rect x="30" y="0" width="4" height="7" rx="2" fill="#22c55e"/>
+  <circle cx="32" cy="0" r="3" fill="#4ade80"/>
+
+  <!-- Head -->
+  <rect x="14" y="7" width="36" height="23" rx="5" fill="#166534"/>
+  <rect x="14" y="7" width="36" height="2" rx="2" fill="#22c55e" opacity="0.4"/>
+
+  <!-- Eye sockets -->
+  <rect x="18" y="13" width="11" height="9" rx="2.5" fill="#000000"/>
+  <rect x="35" y="13" width="11" height="9" rx="2.5" fill="#000000"/>
+  <!-- Eye glow — neon green -->
+  <rect x="20" y="15" width="7" height="5" rx="1.5" fill="#22c55e" opacity="0.9"/>
+  <circle cx="23.5" cy="17.5" r="1.5" fill="#ffffff"/>
+  <rect x="37" y="15" width="7" height="5" rx="1.5" fill="#4ade80" opacity="0.9"/>
+  <circle cx="40.5" cy="17.5" r="1.5" fill="#ffffff"/>
+
+  <!-- Mouth bar -->
+  <rect x="19" y="25" width="26" height="3" rx="1.5" fill="#000000"/>
+  <rect x="21" y="25.5" width="4" height="2" rx="1" fill="#22c55e"/>
+  <rect x="27" y="25.5" width="4" height="2" rx="1" fill="#166534"/>
+  <rect x="33" y="25.5" width="4" height="2" rx="1" fill="#22c55e"/>
+  <rect x="39" y="25.5" width="4" height="2" rx="1" fill="#166534"/>
+
+  <!-- Neck -->
+  <rect x="26" y="30" width="12" height="6" rx="2" fill="#14532d"/>
+
+  <!-- Body -->
+  <rect x="8" y="36" width="48" height="24" rx="6" fill="#166534"/>
+  <rect x="8" y="36" width="48" height="2" rx="2" fill="#22c55e" opacity="0.3"/>
+
+  <!-- Chest panel -->
+  <rect x="17" y="40" width="30" height="15" rx="4" fill="#000000"/>
+  <rect x="18" y="41" width="28" height="13" rx="3" fill="none" stroke="#22c55e" stroke-width="0.5" opacity="0.5"/>
+
+  <!-- Status lights -->
+  <circle cx="24" cy="46" r="3" fill="#22c55e"/>
+  <circle cx="24" cy="46" r="1.5" fill="#86efac"/>
+  <circle cx="32" cy="46" r="3" fill="#ffffff" opacity="0.9"/>
+  <circle cx="32" cy="46" r="1.5" fill="#ffffff"/>
+  <circle cx="40" cy="46" r="3" fill="#15803d"/>
+  <circle cx="40" cy="46" r="1.5" fill="#22c55e"/>
+
+  <!-- Progress bar -->
+  <rect x="19" y="51" width="26" height="2" rx="1" fill="#0a2010"/>
+  <rect x="19" y="51" width="18" height="2" rx="1" fill="#22c55e"/>
+
+  <!-- Left arm -->
+  <rect x="0" y="37" width="8" height="19" rx="4" fill="#14532d"/>
+  <rect x="0" y="37" width="8" height="2" rx="2" fill="#166534"/>
+  <rect x="0" y="54" width="8" height="5" rx="3" fill="#166534"/>
+
+  <!-- Right arm -->
+  <rect x="56" y="37" width="8" height="19" rx="4" fill="#14532d"/>
+  <rect x="56" y="37" width="8" height="2" rx="2" fill="#166534"/>
+  <rect x="56" y="54" width="8" height="5" rx="3" fill="#166534"/>
+
+  <!-- Legs -->
+  <rect x="15" y="60" width="14" height="3" rx="1.5" fill="#14532d"/>
+  <rect x="35" y="60" width="14" height="3" rx="1.5" fill="#14532d"/>
+  <!-- Feet -->
+  <rect x="13" y="61" width="18" height="3" rx="2" fill="#166534"/>
+  <rect x="33" y="61" width="18" height="3" rx="2" fill="#166534"/>
+</svg>

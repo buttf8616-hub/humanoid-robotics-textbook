@@ -1,0 +1,37 @@
+{
+  "id": "modules/module-2/chapter-3-robot-modeling-urdf",
+  "title": "Chapter 3: Services and Actions in ROS 2",
+  "description": "Understanding services and actions for humanoid robot control",
+  "source": "@site/docs/modules/module-2/chapter-3-robot-modeling-urdf.mdx",
+  "sourceDirName": "modules/module-2",
+  "slug": "/modules/module-2/chapter-3-robot-modeling-urdf",
+  "permalink": "/modules/module-2/chapter-3-robot-modeling-urdf",
+  "draft": false,
+  "unlisted": false,
+  "editUrl": "https://github.com/facebook/docusaurus/edit/main/website/docs/modules/module-2/chapter-3-robot-modeling-urdf.mdx",
+  "tags": [],
+  "version": "current",
+  "sidebarPosition": 3,
+  "frontMatter": {
+    "title": "Chapter 3: Services and Actions in ROS 2",
+    "description": "Understanding services and actions for humanoid robot control",
+    "hide_table_of_contents": false,
+    "keywords": [
+      "ROS 2 Services",
+      "Actions",
+      "Synchronous Communication",
+      "Long-Running Tasks",
+      "Robot Control"
+    ],
+    "sidebar_position": 3
+  },
+  "sidebar": "docs",
+  "previous": {
+    "title": "Chapter 2: Nodes and Topics in ROS 2",
+    "permalink": "/modules/module-2/chapter-2-communication-patterns"
+  },
+  "next": {
+    "title": "Chapter 1: Gazebo Simulation Environments",
+    "permalink": "/modules/module-3/chapter-1-gazebo-simulation-environments"
+  }
+}

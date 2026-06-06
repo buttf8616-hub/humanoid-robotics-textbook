@@ -1,0 +1,266 @@
+openapi: 3.0.3
+info:
+  title: Chat API Contract (Frontend Perspective)
+  description: |
+    API contract for frontend-backend communication.
+    This documents the subset of backend API used by the chat widget.
+    Backend implementation is in Spec 003 (AI Agent RAG).
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://api.example.com
+    description: Production (configure via CHAT_API_URL)
+
+paths:
+  /api/v1/chat:
+    post:
+      operationId: sendChatMessage
+      summary: Send a question to the AI agent
+      description: |
+        Sends a user question to the RAG agent, optionally with conversation
+        history and selected text context for focused answering.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChatRequest'
+            examples:
+              simpleQuestion:
+                summary: Simple question
+                value:
+                  question: "What is embodied intelligence?"
+              withHistory:
+                summary: Follow-up question with history
+                value:
+                  question: "What are its key components?"
+                  conversation_history:
+                    - role: "user"
+                      content: "What is embodied intelligence?"
+                    - role: "assistant"
+                      content: "Embodied intelligence refers to..."
+              withSelectedContext:
+                summary: Question about selected text
+                value:
+                  question: "Explain this in simpler terms"
+                  selected_context:
+                    url: "https://example.com/chapter-2"
+                    section: "Sensors"
+      responses:
+        '200':
+          description: Successful response with answer and sources
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ChatResponse'
+              examples:
+                highConfidence:
+                  summary: High confidence answer
+                  value:
+                    answer: "Embodied intelligence refers to the concept that intelligence arises from the interaction between an agent's body and its environment. [Source: Introduction - Core Concepts]"
+                    sources:
+                      - url: "https://example.com/chapter-1"
+                        title: "Introduction to Physical AI"
+                        section: "Core Concepts"
+                        chunk_index: 0
+                        score: 0.92
+                        excerpt: "Embodied intelligence refers to..."
+                    confidence: "high"
+                    latency_ms: 1250.5
+                    tokens_used:
+                      prompt: 450
+                      completion: 120
+                      total: 570
+                refused:
+                  summary: Off-topic query refused
+                  value:
+                    answer: "I don't have information about that topic in the textbook."
+                    sources: []
+                    confidence: "refused"
+                    latency_ms: 850.2
+                    tokens_used:
+                      prompt: 320
+                      completion: 25
+                      total: 345
+        '400':
+          description: Validation error (empty question, whitespace-only)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "validation_error"
+                message: "Question must not be empty"
+                details:
+                  field: "question"
+        '422':
+          description: Pydantic validation error (empty string)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: array
+        '503':
+          description: Service unavailable (backend down, API error)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+              example:
+                error: "service_unavailable"
+                message: "AI agent service temporarily unavailable"
+                details:
+                  service: "openrouter"
+                  retry_after: 5
+
+components:
+  schemas:
+    ChatRequest:
+      type: object
+      required:
+        - question
+      properties:
+        question:
+          type: string
+          minLength: 1
+          description: User's question about the textbook
+          example: "What is embodied intelligence?"
+        top_k:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 5
+          description: Number of relevant chunks to retrieve
+        selected_context:
+          $ref: '#/components/schemas/SelectedContext'
+        conversation_history:
+          type: array
+          items:
+            $ref: '#/components/schemas/ConversationMessage'
+          description: Previous messages for context (recommend last 6)
+
+    SelectedContext:
+      type: object
+      required:
+        - url
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Exact URL to filter results to
+        section:
+          type: string
+          description: Section name to filter (substring match)
+
+    ConversationMessage:
+      type: object
+      required:
+        - role
+        - content
+      properties:
+        role:
+          type: string
+          enum: [user, assistant]
+          description: Message sender
+        content:
+          type: string
+          description: Message content
+
+    ChatResponse:
+      type: object
+      required:
+        - answer
+        - sources
+        - confidence
+        - latency_ms
+        - tokens_used
+      properties:
+        answer:
+          type: string
+          description: Generated answer with inline citations
+        sources:
+          type: array
+          items:
+            $ref: '#/components/schemas/SourceCitation'
+          description: Source citations used to generate answer
+        confidence:
+          type: string
+          enum: [high, medium, low, refused]
+          description: Confidence level based on source quality
+        latency_ms:
+          type: number
+          format: float
+          description: Total response time in milliseconds
+        tokens_used:
+          $ref: '#/components/schemas/TokenUsage'
+
+    SourceCitation:
+      type: object
+      required:
+        - url
+        - title
+        - section
+        - chunk_index
+        - score
+        - excerpt
+      properties:
+        url:
+          type: string
+          format: uri
+          description: Source page URL
+        title:
+          type: string
+          description: Page title
+        section:
+          type: string
+          description: Section header
+        chunk_index:
+          type: integer
+          description: Position in page (0-based)
+        score:
+          type: number
+          format: float
+          minimum: 0
+          maximum: 1
+          description: Relevance score (cosine similarity)
+        excerpt:
+          type: string
+          description: First ~100 characters of content
+
+    TokenUsage:
+      type: object
+      required:
+        - prompt
+        - completion
+        - total
+      properties:
+        prompt:
+          type: integer
+          description: Prompt tokens used
+        completion:
+          type: integer
+          description: Completion tokens used
+        total:
+          type: integer
+          description: Total tokens used
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+          description: Error type identifier
+        message:
+          type: string
+          description: Human-readable error message
+        details:
+          type: object
+          additionalProperties: true
+          description: Additional error details

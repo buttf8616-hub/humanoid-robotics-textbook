@@ -1,0 +1,293 @@
+openapi: 3.1.0
+info:
+  title: Book Ingestion Pipeline API
+  description: API for ingesting Docusaurus book content into Qdrant vector database
+  version: 1.0.0
+  contact:
+    name: Book Ingestion Pipeline
+
+servers:
+  - url: http://localhost:8000
+    description: Local development
+  - url: https://your-space.hf.space
+    description: Hugging Face Spaces
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      description: Returns service health status
+      operationId: health_check
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
+  /ingest:
+    post:
+      summary: Trigger book ingestion
+      description: Start a full ingestion of the deployed book
+      operationId: trigger_ingestion
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/IngestRequest'
+      responses:
+        '202':
+          description: Ingestion job started
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/IngestResponse'
+        '400':
+          description: Invalid request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '503':
+          description: Service unavailable (another job running)
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /ingest/status/{job_id}:
+    get:
+      summary: Get ingestion job status
+      description: Returns the current status of an ingestion job
+      operationId: get_job_status
+      parameters:
+        - name: job_id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Job status retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/JobStatusResponse'
+        '404':
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /verify:
+    get:
+      summary: Verify collection status
+      description: Returns statistics about the Qdrant collection
+      operationId: verify_collection
+      responses:
+        '200':
+          description: Collection statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/VerifyResponse'
+        '503':
+          description: Qdrant unavailable
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+  /verify/url:
+    get:
+      summary: Verify chunks for URL
+      description: Returns chunks stored for a specific URL
+      operationId: verify_url
+      parameters:
+        - name: url
+          in: query
+          required: true
+          schema:
+            type: string
+            format: uri
+      responses:
+        '200':
+          description: URL chunks retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UrlVerifyResponse'
+        '404':
+          description: URL not found in collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+
+components:
+  schemas:
+    HealthResponse:
+      type: object
+      required:
+        - status
+        - timestamp
+      properties:
+        status:
+          type: string
+          enum: [healthy, degraded, unhealthy]
+        timestamp:
+          type: string
+          format: date-time
+        version:
+          type: string
+        services:
+          type: object
+          properties:
+            qdrant:
+              type: string
+              enum: [connected, disconnected]
+            cohere:
+              type: string
+              enum: [available, unavailable]
+
+    IngestRequest:
+      type: object
+      required:
+        - base_url
+      properties:
+        base_url:
+          type: string
+          format: uri
+          description: Base URL of the deployed Docusaurus book
+          example: https://buttf8616-hub.github.io/humanoid-robotics-textbook
+        force:
+          type: boolean
+          default: false
+          description: Force re-ingestion even if content hasn't changed
+
+    IngestResponse:
+      type: object
+      required:
+        - job_id
+        - status
+        - message
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running]
+        message:
+          type: string
+
+    JobStatusResponse:
+      type: object
+      required:
+        - job_id
+        - status
+        - started_at
+        - pages_total
+        - pages_processed
+        - chunks_created
+      properties:
+        job_id:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [pending, running, completed, failed]
+        started_at:
+          type: string
+          format: date-time
+        completed_at:
+          type: string
+          format: date-time
+          nullable: true
+        pages_total:
+          type: integer
+        pages_processed:
+          type: integer
+        chunks_created:
+          type: integer
+        errors:
+          type: array
+          items:
+            $ref: '#/components/schemas/ErrorDetail'
+
+    ErrorDetail:
+      type: object
+      properties:
+        url:
+          type: string
+        error_type:
+          type: string
+        message:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    VerifyResponse:
+      type: object
+      required:
+        - collection_name
+        - vector_count
+        - indexed_urls
+        - status
+      properties:
+        collection_name:
+          type: string
+        vector_count:
+          type: integer
+        indexed_urls:
+          type: integer
+        status:
+          type: string
+          enum: [ready, empty, error]
+
+    UrlVerifyResponse:
+      type: object
+      required:
+        - url
+        - chunk_count
+        - chunks
+      properties:
+        url:
+          type: string
+        chunk_count:
+          type: integer
+        chunks:
+          type: array
+          items:
+            $ref: '#/components/schemas/ChunkDetail'
+
+    ChunkDetail:
+      type: object
+      properties:
+        chunk_index:
+          type: integer
+        section:
+          type: string
+        token_count:
+          type: integer
+        content_preview:
+          type: string
+          description: First 200 characters of chunk
+
+    ErrorResponse:
+      type: object
+      required:
+        - error
+        - message
+      properties:
+        error:
+          type: string
+        message:
+          type: string
+        details:
+          type: object

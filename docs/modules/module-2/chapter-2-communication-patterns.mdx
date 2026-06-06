@@ -1,0 +1,540 @@
+---
+title: "Chapter 2: Nodes and Topics in ROS 2"
+description: "Deep dive into nodes and topics for humanoid robot communication"
+hide_table_of_contents: false
+keywords: ["ROS 2 Nodes", "Topics", "Communication", "Publish-Subscribe", "Message Passing"]
+sidebar_position: 2
+---
+
+# Chapter 2: Nodes and Topics in ROS 2
+
+## Learning Objectives
+- Master the creation and management of ROS 2 nodes
+- Implement efficient topic-based communication
+- Design communication patterns for humanoid robots
+- Optimize message passing for real-time performance
+- Apply best practices for node architecture
+
+## Introduction to Nodes
+
+Nodes are the fundamental execution units in ROS 2. Each node runs a specific task and communicates with other nodes through topics, services, or actions. In humanoid robotics, nodes often represent different subsystems such as perception, control, planning, and hardware interfaces.
+
+### Node Lifecycle
+
+A ROS 2 node goes through several states during its lifecycle:
+- Unconfigured
+- Inactive
+- Active
+- Finalized
+
+```python
+import rclpy
+from rclpy.lifecycle import LifecycleNode, TransitionCallbackReturn
+from rclpy.lifecycle import LifecycleState
+
+class HumanoidLifecycleNode(LifecycleNode):
+    def __init__(self):
+        super().__init__('humanoid_lifecycle_node')
+
+    def on_configure(self, state):
+        self.get_logger().info('Configuring node...')
+        # Initialize resources
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_activate(self, state):
+        self.get_logger().info('Activating node...')
+        # Activate publishers/subscribers
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_deactivate(self, state):
+        self.get_logger().info('Deactivating node...')
+        # Deactivate publishers/subscribers
+        return TransitionCallbackReturn.SUCCESS
+
+    def on_cleanup(self, state):
+        self.get_logger().info('Cleaning up node...')
+        # Release resources
+        return TransitionCallbackReturn.SUCCESS
+```
+
+## Node Creation and Management
+
+### Basic Node Structure
+
+```python
+import rclpy
+from rclpy.node import Node
+
+class HumanoidControllerNode(Node):
+    def __init__(self):
+        # Initialize the node with a name
+        super().__init__('humanoid_controller_node')
+
+        # Set parameters
+        self.declare_parameter('control_frequency', 100)
+        self.control_freq = self.get_parameter('control_frequency').value
+
+        # Initialize internal state
+        self.joint_positions = {}
+        self.robot_state = 'idle'
+
+        self.get_logger().info(f'Node initialized with frequency: {self.control_freq}Hz')
+```
+
+### Node Names and Namespaces
+
+Proper naming and namespace usage is crucial for organizing complex humanoid robot systems:
+
+```python
+# Using namespaces to organize nodes
+class UpperBodyController(Node):
+    def __init__(self):
+        # Create node with namespace
+        super().__init__('upper_body_controller', namespace='/humanoid')
+
+        # Publishers and subscribers will be namespaced automatically
+        self.arm_pub = self.create_publisher(JointState, 'arm/joint_commands', 10)
+        self.head_pub = self.create_publisher(JointState, 'head/joint_commands', 10)
+
+class LowerBodyController(Node):
+    def __init__(self):
+        # Alternative: specify namespace in constructor
+        super().__init__('lower_body_controller', namespace='/humanoid')
+
+        self.leg_pub = self.create_publisher(JointState, 'legs/joint_commands', 10)
+        self.waist_pub = self.create_publisher(JointState, 'waist/joint_commands', 10)
+```
+
+## Topic Communication
+
+### Publishers
+
+Publishers send messages to topics asynchronously. The creation of a publisher involves specifying the message type, topic name, and Quality of Service (QoS) settings.
+
+```python
+from std_msgs.msg import String
+from sensor_msgs.msg import JointState
+from builtin_interfaces.msg import Time
+import math
+
+class JointStatePublisher(Node):
+    def __init__(self):
+        super().__init__('joint_state_publisher')
+
+        # Create publisher with default QoS
+        self.joint_pub = self.create_publisher(JointState, 'joint_states', 10)
+
+        # Create publisher with custom QoS for real-time control
+        from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSHistoryPolicy
+        control_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            history=QoSHistoryPolicy.KEEP_LAST
+        )
+        self.control_pub = self.create_publisher(JointState, 'control_commands', control_qos)
+
+        # Timer for periodic publishing
+        self.timer = self.create_timer(0.01, self.publish_joint_states)  # 100Hz
+
+    def publish_joint_states(self):
+        msg = JointState()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        msg.header.frame_id = 'base_link'
+
+        # Populate joint names and positions
+        joint_names = ['hip_left', 'hip_right', 'knee_left', 'knee_right']
+        positions = [math.sin(self.get_clock().now().nanoseconds * 1e-9) for _ in joint_names]
+
+        msg.name = joint_names
+        msg.position = positions
+        msg.velocity = [0.0] * len(joint_names)
+        msg.effort = [0.0] * len(joint_names)
+
+        self.joint_pub.publish(msg)
+```
+
+### Subscribers
+
+Subscribers receive messages from topics asynchronously through callbacks.
+
+```python
+from sensor_msgs.msg import Imu, JointState
+from geometry_msgs.msg import Twist
+
+class SensorProcessor(Node):
+    def __init__(self):
+        super().__init__('sensor_processor')
+
+        # Subscribe to IMU data
+        self.imu_sub = self.create_subscription(
+            Imu,
+            'imu/data',
+            self.imu_callback,
+            10
+        )
+
+        # Subscribe to joint states
+        self.joint_sub = self.create_subscription(
+            JointState,
+            'joint_states',
+            self.joint_callback,
+            10
+        )
+
+        # Subscribe to velocity commands
+        self.cmd_sub = self.create_subscription(
+            Twist,
+            'cmd_vel',
+            self.cmd_callback,
+            10
+        )
+
+        # Internal state
+        self.current_imu = None
+        self.current_joints = None
+        self.desired_twist = None
+
+    def imu_callback(self, msg):
+        self.current_imu = msg
+        self.get_logger().debug(f'IMU orientation: ({msg.orientation.x}, {msg.orientation.y}, {msg.orientation.z})')
+
+    def joint_callback(self, msg):
+        self.current_joints = msg
+        # Process joint data
+        if len(msg.position) > 0:
+            avg_pos = sum(msg.position) / len(msg.position)
+            self.get_logger().debug(f'Average joint position: {avg_pos}')
+
+    def cmd_callback(self, msg):
+        self.desired_twist = msg
+        self.get_logger().info(f'New velocity command: linear=({msg.linear.x}, {msg.linear.y}, {msg.linear.z}), angular=({msg.angular.x}, {msg.angular.y}, {msg.angular.z})')
+```
+
+## Advanced Topic Concepts
+
+### Quality of Service (QoS) Patterns
+
+Different QoS settings are appropriate for different types of communication:
+
+```python
+from rclpy.qos import QoSProfile, QoSReliabilityPolicy, QoSDurabilityPolicy, QoSHistoryPolicy
+
+class QoSDemo(Node):
+    def __init__(self):
+        super().__init__('qos_demo')
+
+        # Real-time control - reliable, keep last message only
+        control_qos = QoSProfile(
+            depth=1,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            history=QoSHistoryPolicy.KEEP_LAST
+        )
+        self.control_pub = self.create_publisher(JointState, 'control_commands', control_qos)
+
+        # Logging - best effort, keep all messages
+        logging_qos = QoSProfile(
+            depth=1000,
+            reliability=QoSReliabilityPolicy.BEST_EFFORT,
+            durability=QoSDurabilityPolicy.TRANSIENT_LOCAL,
+            history=QoSHistoryPolicy.KEEP_ALL
+        )
+        self.log_pub = self.create_publisher(String, 'log_messages', logging_qos)
+
+        # Sensor data - reliable, keep last few messages
+        sensor_qos = QoSProfile(
+            depth=5,
+            reliability=QoSReliabilityPolicy.RELIABLE,
+            durability=QoSDurabilityPolicy.VOLATILE,
+            history=QoSHistoryPolicy.KEEP_LAST
+        )
+        self.sensor_pub = self.create_publisher(LaserScan, 'scan', sensor_qos)
+```
+
+### Message Filtering and Throttling
+
+For high-frequency topics, it's often necessary to filter or throttle messages:
+
+```python
+from functools import wraps
+import time
+
+def throttle(rate_hz):
+    """Decorator to throttle function calls"""
+    min_interval = 1.0 / rate_hz
+    last_called = [0.0]
+
+    def decorator(func):
+        @wraps(func)
+        def wrapper(*args, **kwargs):
+            current_time = time.time()
+            if current_time - last_called[0] >= min_interval:
+                result = func(*args, **kwargs)
+                last_called[0] = current_time
+                return result
+        return wrapper
+    return decorator
+
+class ThrottledProcessor(Node):
+    def __init__(self):
+        super().__init__('throttled_processor')
+
+        # High frequency sensor data
+        self.high_freq_sub = self.create_subscription(
+            LaserScan,
+            'raw_scan',
+            self.raw_scan_callback,
+            10
+        )
+
+    @throttle(10)  # Throttle to 10Hz
+    def raw_scan_callback(self, msg):
+        # Process at max 10Hz regardless of input rate
+        self.process_filtered_scan(msg)
+
+    def process_filtered_scan(self, msg):
+        self.get_logger().info(f'Processing throttled scan data')
+```
+
+## Communication Patterns for Humanoid Robots
+
+### Sensor Fusion Pattern
+
+Multiple sensor nodes publish to a central fusion node:
+
+```python
+# Sensor nodes (each runs separately)
+class ImuSensorNode(Node):
+    def __init__(self):
+        super().__init__('imu_sensor')
+        self.pub = self.create_publisher(Imu, 'sensors/imu', 10)
+        self.timer = self.create_timer(0.01, self.publish_data)  # 100Hz
+
+    def publish_data(self):
+        # Simulate IMU data acquisition
+        msg = Imu()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        # ... populate with actual sensor data
+        self.pub.publish(msg)
+
+class CameraSensorNode(Node):
+    def __init__(self):
+        super().__init__('camera_sensor')
+        self.pub = self.create_publisher(Image, 'sensors/camera', 10)
+        self.timer = self.create_timer(0.1, self.publish_data)  # 10Hz
+
+    def publish_data(self):
+        # Simulate camera data acquisition
+        msg = Image()
+        msg.header.stamp = self.get_clock().now().to_msg()
+        # ... populate with actual image data
+        self.pub.publish(msg)
+
+# Fusion node
+class SensorFusionNode(Node):
+    def __init__(self):
+        super().__init__('sensor_fusion')
+
+        self.imu_sub = self.create_subscription(Imu, 'sensors/imu', self.imu_callback, 10)
+        self.cam_sub = self.create_subscription(Image, 'sensors/camera', self.cam_callback, 10)
+
+        self.fused_pub = self.create_publisher(HumanoidState, 'state_estimate', 10)
+
+        # Synchronize sensor data
+        self.latest_imu = None
+        self.latest_cam = None
+
+    def imu_callback(self, msg):
+        self.latest_imu = msg
+        self.publish_fused_state()
+
+    def cam_callback(self, msg):
+        self.latest_cam = msg
+        self.publish_fused_state()
+
+    def publish_fused_state(self):
+        if self.latest_imu and self.latest_cam:
+            fused_msg = HumanoidState()
+            # Combine sensor data into fused state estimate
+            fused_msg.imu_data = self.latest_imu
+            fused_msg.vision_data = self.latest_cam
+            fused_msg.timestamp = self.get_clock().now().to_msg()
+
+            self.fused_pub.publish(fused_msg)
+```
+
+### Hierarchical Control Pattern
+
+Different control levels communicate through topics:
+
+```python
+# High-level planner node
+class MotionPlannerNode(Node):
+    def __init__(self):
+        super().__init__('motion_planner')
+
+        self.trajectory_pub = self.create_publisher(JointTrajectory, 'planned_trajectories', 10)
+        self.state_sub = self.create_subscription(HumanoidState, 'state_estimate', self.state_callback, 10)
+
+        self.planning_timer = self.create_timer(1.0, self.plan_next_motion)  # Plan every second
+
+    def state_callback(self, msg):
+        self.current_state = msg
+
+    def plan_next_motion(self):
+        if hasattr(self, 'current_state'):
+            # Plan next trajectory based on current state
+            trajectory = self.compute_trajectory(self.current_state)
+            self.trajectory_pub.publish(trajectory)
+
+# Low-level controller node
+class JointControllerNode(Node):
+    def __init__(self):
+        super().__init__('joint_controller')
+
+        self.trajectory_sub = self.create_subscription(JointTrajectory, 'planned_trajectories', self.trajectory_callback, 10)
+        self.joint_cmd_pub = self.create_publisher(JointCommand, 'joint_commands', 10)
+        self.feedback_sub = self.create_subscription(JointState, 'feedback/joint_states', self.feedback_callback, 10)
+
+        self.controller_timer = self.create_timer(0.001, self.control_loop)  # 1kHz control loop
+
+    def trajectory_callback(self, msg):
+        self.current_trajectory = msg
+
+    def feedback_callback(self, msg):
+        self.current_feedback = msg
+
+    def control_loop(self):
+        if hasattr(self, 'current_trajectory') and hasattr(self, 'current_feedback'):
+            # Compute control commands
+            commands = self.compute_control_commands(
+                self.current_trajectory,
+                self.current_feedback,
+                self.get_clock().now().to_msg()
+            )
+            self.joint_cmd_pub.publish(commands)
+```
+
+## Performance Optimization
+
+### Efficient Message Handling
+
+```python
+import numpy as np
+from sensor_msgs.msg import PointCloud2
+from sensor_msgs_py import point_cloud2
+
+class EfficientPointCloudProcessor(Node):
+    def __init__(self):
+        super().__init__('efficient_pointcloud_processor')
+
+        self.pc_sub = self.create_subscription(
+            PointCloud2,
+            'point_cloud',
+            self.pointcloud_callback,
+            10
+        )
+
+    def pointcloud_callback(self, msg):
+        # Convert to numpy arrays for efficient processing
+        points = np.array(list(point_cloud2.read_points(msg, skip_nans=True, field_names=("x", "y", "z"))))
+
+        # Perform efficient operations
+        if len(points) > 0:
+            center = np.mean(points, axis=0)
+            distances = np.linalg.norm(points - center, axis=1)
+            closest_idx = np.argmin(distances)
+
+            self.get_logger().info(f'Processed {len(points)} points, closest point: {points[closest_idx]}')
+```
+
+### Memory Management
+
+```python
+from collections import deque
+
+class MemoryEfficientProcessor(Node):
+    def __init__(self):
+        super().__init__('memory_efficient_processor')
+
+        self.data_sub = self.create_subscription(String, 'input_data', self.data_callback, 10)
+
+        # Use deque for efficient memory usage of sliding window
+        self.data_buffer = deque(maxlen=100)
+
+    def data_callback(self, msg):
+        # Add to buffer
+        self.data_buffer.append(msg.data)
+
+        # Process data efficiently
+        if len(self.data_buffer) == 100:
+            # Perform analysis on the last 100 messages
+            avg_len = sum(len(data) for data in self.data_buffer) / len(self.data_buffer)
+            self.get_logger().info(f'Average message length: {avg_len}')
+```
+
+## Debugging and Monitoring
+
+### Topic Inspection
+
+```python
+class TopicInspector(Node):
+    def __init__(self):
+        super().__init__('topic_inspector')
+
+        # Create subscriptions to monitor other topics
+        self.monitor_subs = {}
+        topics_to_monitor = [
+            ('/joint_states', JointState),
+            ('/tf', TFMessage),
+            ('/cmd_vel', Twist)
+        ]
+
+        for topic_name, msg_type in topics_to_monitor:
+            self.monitor_subs[topic_name] = self.create_subscription(
+                msg_type, topic_name,
+                lambda msg, t=topic_name: self.generic_callback(msg, t),
+                10
+            )
+
+    def generic_callback(self, msg, topic_name):
+        self.get_logger().debug(f'Received message on {topic_name}')
+        # Log message statistics
+        if hasattr(msg, 'header'):
+            self.get_logger().debug(f'Timestamp: {msg.header.stamp.sec}.{msg.header.stamp.nanosec}')
+```
+
+## Best Practices
+
+### Node Design Principles
+
+1. **Single Responsibility**: Each node should have a single, well-defined purpose
+2. **Loose Coupling**: Minimize dependencies between nodes
+3. **High Cohesion**: Group related functionality within nodes
+4. **Error Handling**: Implement robust error handling and recovery
+5. **Resource Management**: Properly manage memory, connections, and other resources
+
+### Topic Naming Conventions
+
+- Use descriptive names that clearly indicate the purpose
+- Use forward slashes to create hierarchical organization
+- Use underscores for multi-word topics
+- Follow a consistent naming scheme across your system
+
+```python
+# Good naming examples
+'/humanoid/left_arm/joint_states'
+'/humanoid/right_leg/imu_data'
+'/humanoid/perception/obstacles'
+'/humanoid/control/walking_pattern'
+```
+
+## Summary
+
+Nodes and topics form the backbone of communication in ROS 2 systems. Understanding how to properly design and implement node-topic architectures is essential for creating robust humanoid robot systems. The publish-subscribe pattern enables decoupled, scalable architectures where different subsystems can communicate efficiently while maintaining independence.
+
+## Exercises
+
+1. Implement a node that subscribes to multiple sensor streams and publishes a fused state estimate.
+2. Create a topic-based communication system for coordinating multiple robot controllers.
+3. Design a hierarchical control system using topics with appropriate QoS settings.

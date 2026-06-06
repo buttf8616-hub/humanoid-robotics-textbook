@@ -1,0 +1,66 @@
+{
+  "title": "Physical AI & Humanoid Robotics",
+  "description": "A comprehensive guide to Physical AI and Humanoid Robotics",
+  "topics": [
+    {
+      "id": "physical-ai-fundamentals",
+      "title": "Physical AI Fundamentals",
+      "description": "Introduction to Physical AI concepts and principles",
+      "learningObjectives": [
+        "Understand the basic principles of Physical AI",
+        "Identify key components of Physical AI systems",
+        "Compare Physical AI with traditional AI approaches"
+      ],
+      "category": "Foundations",
+      "prerequisites": []
+    },
+    {
+      "id": "humanoid-robotics-overview",
+      "title": "Humanoid Robotics Overview",
+      "description": "Introduction to humanoid robot design and control",
+      "learningObjectives": [
+        "Understand the design principles of humanoid robots",
+        "Identify different types of humanoid robots",
+        "Explain the challenges in humanoid robot control"
+      ],
+      "category": "Foundations",
+      "prerequisites": ["physical-ai-fundamentals"]
+    },
+    {
+      "id": "ros2-fundamentals",
+      "title": "ROS 2 Fundamentals",
+      "description": "Introduction to ROS 2 architecture and Python agents for humanoid robot control",
+      "learningObjectives": [
+        "Understand ROS 2 nodes and topics",
+        "Implement robot control with rclpy",
+        "Model humanoid robots with URDF"
+      ],
+      "category": "Robotics Systems",
+      "prerequisites": ["physical-ai-fundamentals"]
+    },
+    {
+      "id": "simulation-environments",
+      "title": "Simulation Environments",
+      "description": "Using simulation for humanoid robot development and testing",
+      "learningObjectives": [
+        "Set up simulation environments for humanoid robots",
+        "Implement physics-based simulation",
+        "Validate robot behavior in simulation"
+      ],
+      "category": "Development Tools",
+      "prerequisites": ["ros2-fundamentals"]
+    },
+    {
+      "id": "control-systems",
+      "title": "Control Systems",
+      "description": "Advanced control algorithms for humanoid robots",
+      "learningObjectives": [
+        "Implement feedback control systems",
+        "Design balance and locomotion controllers",
+        "Optimize control performance"
+      ],
+      "category": "Control Engineering",
+      "prerequisites": ["simulation-environments"]
+    }
+  ]
+}
