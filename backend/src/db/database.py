@@ -1,8 +1,10 @@
 """SQLite database setup for user authentication."""
+import os
 import sqlite3
 from pathlib import Path
 
-DB_PATH = Path(__file__).parent.parent.parent / "data" / "auth.db"
+_default = Path(__file__).parent.parent.parent / "data" / "auth.db"
+DB_PATH = Path(os.getenv("DATABASE_PATH", str(_default)))
 
 
 def get_connection() -> sqlite3.Connection:
